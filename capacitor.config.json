@@ -1,0 +1,16 @@
+{
+  "appId": "com.heal.app",
+  "appName": "HEAL",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "android": {
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "79174316855-web.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "short_name": "HEAL",
+  "name": "HEAL - Healthy Empowered Aware Limitless",
+  "icons": [
+    {
+      "src": "/heal-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/heal-logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#fce7f3",
+  "theme_color": "#ec4899",
+  "display": "standalone",
+  "orientation": "portrait"
+}
