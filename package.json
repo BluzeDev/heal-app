@@ -19,7 +19,7 @@
     "@google/genai": "^2.15.0",
     "@tailwindcss/vite": "^4.3.3",
     "autoprefixer": "^10.5.4",
-    "firebase": "^12.17.0",
+    "firebase": "^12.19.0",
     "lucide-react": "^1.59.0",
     "postcss": "^8.5.25",
     "react": "^19.2.8",

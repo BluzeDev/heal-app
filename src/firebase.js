@@ -5,10 +5,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   initializeAuth, 
-  indexedDBLocalPersistence, 
   browserLocalPersistence,
-  browserPopupRedirectResolver,
-  setPersistence
+  browserPopupRedirectResolver
 } from "firebase/auth";
 
 // Konfigurasi Firebase Web App milikmu
@@ -29,25 +27,17 @@ const app = initializeApp(firebaseConfig);
 // Ekspor layanan database
 export const db = getFirestore(app);
 
-// Inisialisasi Auth dengan browserPopupRedirectResolver agar signInWithPopup berfungsi di Web/Capacitor
+// Inisialisasi Auth dengan browserLocalPersistence secara eksplisit (localStorage)
+// Menggunakan localStorage mencegah error 'Database is closing/hidden' dari IndexedDB
+// serta memastikan token sesi user tersimpan permanen di perangkat lokal / APK Capacitor
 let authInstance;
 try {
   authInstance = initializeAuth(app, {
-    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    persistence: browserLocalPersistence,
     popupRedirectResolver: browserPopupRedirectResolver
   });
 } catch (e) {
   authInstance = getAuth(app);
-}
-
-// Pastikan persistence diatur secara eksplisit menggunakan browserLocalPersistence
-// agar token sesi user tersimpan permanen di perangkat lokal dan user tidak keluar sendiri saat aplikasi APK ditutup dan dibuka kembali
-try {
-  setPersistence(authInstance, browserLocalPersistence).catch((err) => {
-    console.warn("Peringatan setPersistence Firebase Auth:", err);
-  });
-} catch (err) {
-  console.warn("Gagal inisialisasi setPersistence eksplisit:", err);
 }
 
 export const auth = authInstance;
