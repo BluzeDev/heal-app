@@ -2,6 +2,8 @@
 
 Aplikasi Kesehatan Remaja & Edukasi Mental-Fisik Berbasis Web & Android (React.js + Vite + Capacitor + Firebase).
 
+🌐 **Live Demo:** [https://heal-app-83869.web.app](https://heal-app-83869.web.app)
+
 ---
 
 ### Hi there, I'm Aidan! 👋
