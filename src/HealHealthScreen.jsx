@@ -123,11 +123,6 @@ export default function HealHealthScreen({ user, isDarkMode }) {
   const [editingMetric, setEditingMetric] = useState(null);
   const [tempValue, setTempValue] = useState('');
 
-  // 1. Water Intake State
-  const [waterGlasses, setWaterGlasses] = useState(() => {
-    const saved = localStorage.getItem(`heal_water_${userKey}`);
-    return saved ? parseInt(saved, 10) : 4;
-  });
   const [waterTargetGlasses, setWaterTargetGlasses] = useState(() => {
     const saved = localStorage.getItem(`heal_water_target_${userKey}`);
     return saved ? parseInt(saved, 10) : 8;
@@ -211,26 +206,6 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     calculateHealthMetrics(berat, tinggi, usia, gender, false);
   }, [userKey]);
 
-  // Save Water
-  const handleAddWater = () => {
-    triggerFeedback();
-    if (waterGlasses < 12) {
-      const updated = waterGlasses + 1;
-      setWaterGlasses(updated);
-      localStorage.setItem(`heal_water_${userKey}`, updated);
-    }
-  };
-
-  const handleMinusWater = () => {
-    triggerFeedback();
-    if (waterGlasses > 0) {
-      const updated = waterGlasses - 1;
-      setWaterGlasses(updated);
-      localStorage.setItem(`heal_water_${userKey}`, updated);
-    }
-  };
-
-  // Save Period
   const handleSavePeriod = (e) => {
     e.preventDefault();
     triggerFeedback();
@@ -815,56 +790,6 @@ export default function HealHealthScreen({ user, isDarkMode }) {
           </div>
         )}
       </div>
-
-      {/* SECTION 4: WATER INTAKE TRACKER 💧 */}
-      <div className={`rounded-3xl p-5 shadow-sm border space-y-3 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-pink-100'}`}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-sm flex items-center gap-2">
-            <span>💧</span> Pengingat Minum Air Putih
-          </h2>
-          <span className="text-xs font-bold text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
-            {waterGlasses} / {waterTargetGlasses} Gelas (Target: {(waterTargetGlasses * 0.25).toFixed(1)} L)
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between gap-2 pt-2">
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
-            {Array.from({ length: Math.min(16, waterTargetGlasses) }).map((_, idx) => (
-              <div 
-                key={idx}
-                className={`w-7 h-10 rounded-xl border flex items-center justify-center text-xs transition-all ${
-                  idx < waterGlasses 
-                    ? 'bg-blue-500 text-white border-blue-600 shadow-sm' 
-                    : isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-blue-50 border-blue-200 text-blue-300'
-                }`}
-              >
-                🥛
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button 
-              onClick={handleMinusWater}
-              className={`w-9 h-9 rounded-full font-bold border flex items-center justify-center transition-colors ${
-                isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-700'
-              }`}
-            >
-              -
-            </button>
-            <button 
-              onClick={handleAddWater}
-              className="w-9 h-9 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center shadow-md hover:bg-blue-600 transition-colors"
-            >
-              +
-            </button>
-          </div>
-        </div>
-        <p className="text-[11px] opacity-60">
-          Target hidrasi harianmu adalah {waterTargetGlasses} gelas (± {(waterTargetGlasses * 0.25).toFixed(1)} liter) berdasarkan rekomendasi metabolisme berat badanmu.
-        </p>
-      </div>
-
       {/* SECTION 5: KALKULATOR KESEHATAN REMAJA (IMT, BMR/TDEE & HIDRASI) ⚖️ */}
       <div className={`rounded-3xl p-5 shadow-sm border space-y-4 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-pink-100'}`}>
         <div className="flex items-center justify-between">

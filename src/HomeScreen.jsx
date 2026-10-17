@@ -6,7 +6,7 @@ import InstallPWAButton from './InstallPWAButton';
 import { DISEASES_DATA } from './data/diseasesData';
 import { 
   ArrowRight, Sparkles, UserCheck, AlertCircle, Heart, Wind, 
-  Droplets, Stethoscope, MessageCircle, Plus, Minus, Moon, Smile, Check 
+  Droplets, Stethoscope, MessageCircle 
 } from 'lucide-react';
 
 const SPIRIT_QUOTES = [
@@ -28,60 +28,6 @@ export default function HomeScreen({ user, onOpenProfile, onLogout, onSelectTopi
   const [userProfile, setUserProfile] = useState(null);
   const [showIncompleteBanner, setShowIncompleteBanner] = useState(false);
 
-  // State Daily Check-in Cepat Hari Ini (Mood, Minum Air, Jam Tidur)
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const wellnessStorageKey = `heal_wellness_${user || 'guest'}_${todayKey}`;
-  const waterStorageKey = `heal_water_${user || 'guest'}`;
-
-  const [quickCheckin, setQuickCheckin] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(wellnessStorageKey)) || {};
-      const savedWater = parseInt(localStorage.getItem(waterStorageKey), 10) || saved.water || 4;
-      return {
-        mood: saved.mood ?? null,
-        water: savedWater,
-        sleep: saved.sleep ?? 7
-      };
-    } catch {
-      return { mood: null, water: 4, sleep: 7 };
-    }
-  });
-
-  const saveQuickCheckin = (updated) => {
-    setQuickCheckin(updated);
-    try {
-      localStorage.setItem(wellnessStorageKey, JSON.stringify({
-        ...updated,
-        date: todayKey,
-        savedAt: new Date().toLocaleTimeString('id-ID')
-      }));
-      localStorage.setItem(waterStorageKey, updated.water.toString());
-    } catch (e) {}
-  };
-
-  const handleQuickMood = (emojiScore) => {
-    triggerFeedback();
-    const updated = { ...quickCheckin, mood: emojiScore };
-    saveQuickCheckin(updated);
-  };
-
-  const handleQuickWaterAdd = () => {
-    triggerFeedback();
-    const updated = { ...quickCheckin, water: Math.min(quickCheckin.water + 1, 16) };
-    saveQuickCheckin(updated);
-  };
-
-  const handleQuickWaterSub = () => {
-    triggerFeedback();
-    const updated = { ...quickCheckin, water: Math.max(quickCheckin.water - 1, 0) };
-    saveQuickCheckin(updated);
-  };
-
-  const handleQuickSleepChange = (delta) => {
-    triggerFeedback();
-    const updated = { ...quickCheckin, sleep: Math.max(3, Math.min(12, Number((quickCheckin.sleep + delta).toFixed(1)))) };
-    saveQuickCheckin(updated);
-  };
 
   useEffect(() => {
     // 1. Daily Deterministic Seed berbasis tanggal hari ini (contoh: "2026-10-17")
@@ -266,147 +212,6 @@ export default function HomeScreen({ user, onOpenProfile, onLogout, onSelectTopi
         </div>
       )}
 
-      {/* ───────────── PINTASAN INTERAKTIF DAILY CHECK-IN ───────────── */}
-      <div className={`p-4 md:p-5 rounded-3xl border shadow-sm space-y-3.5 transition-all ${
-        isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-pink-100 shadow-pink-100/30'
-      }`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-400 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-              ✨
-            </div>
-            <div>
-              <h3 className="font-black text-xs md:text-sm flex items-center gap-1.5">
-                <span>Pintasan Daily Check-in</span>
-                <span className="text-[10px] font-bold text-teal-600 bg-teal-50 dark:bg-teal-950/60 dark:text-teal-300 px-2 py-0.5 rounded-full">
-                  Hari Ini
-                </span>
-              </h3>
-              <p className="text-[10px] opacity-60">Catat suasana hati, hidrasi harian, & jam tidurmu</p>
-            </div>
-          </div>
-
-          {onNavigate && (
-            <button
-              onClick={() => { triggerFeedback(); onNavigate('wellness'); }}
-              className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1"
-            >
-              <span>Jurnal Lengkap</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        {/* 1. Mood Picker Cepat */}
-        <div className="space-y-1.5">
-          <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
-            1. Bagaimana Perasaan / Mood Kamu Hari Ini?
-          </span>
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-            {[
-              { score: 5, emoji: '😄', label: 'Senang' },
-              { score: 4, emoji: '🙂', label: 'Baik' },
-              { score: 3, emoji: '😐', label: 'Biasa' },
-              { score: 2, emoji: '😔', label: 'Lelah' },
-              { score: 1, emoji: '😫', label: 'Stres' }
-            ].map((m) => {
-              const isSelected = quickCheckin.mood === m.score;
-              return (
-                <button
-                  key={m.score}
-                  type="button"
-                  onClick={() => handleQuickMood(m.score)}
-                  className={`py-2 px-1 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 active:scale-95 ${
-                    isSelected
-                      ? 'bg-gradient-to-b from-teal-500 to-emerald-600 text-white border-teal-600 shadow-md scale-105'
-                      : isDarkMode
-                      ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                      : 'bg-teal-50/40 border-teal-100 hover:bg-teal-100/50 text-gray-700'
-                  }`}
-                >
-                  <span className="text-xl sm:text-2xl">{m.emoji}</span>
-                  <span className="text-[9px] font-bold line-clamp-1">{m.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 2. Hydration & Sleep Quick Control */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-          {/* Hydration Tracker */}
-          <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
-            isDarkMode ? 'bg-gray-800/60 border-gray-700' : 'bg-sky-50/50 border-sky-100'
-          }`}>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                <Droplets className="w-3.5 h-3.5" /> Hidrasi (Minum Air)
-              </span>
-              <div className="text-sm font-black flex items-baseline gap-1">
-                <span>{quickCheckin.water}</span>
-                <span className="text-[10px] font-normal opacity-60">/ 8 Gelas</span>
-              </div>
-              {/* Mini progress */}
-              <div className="w-24 h-1.5 bg-sky-200/50 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-sky-400 to-blue-500 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, (quickCheckin.water / 8) * 100)}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleQuickWaterSub}
-                className="w-7 h-7 rounded-xl bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 border border-gray-200 dark:border-gray-600 flex items-center justify-center font-bold text-xs hover:bg-gray-100"
-              >
-                -
-              </button>
-              <button
-                type="button"
-                onClick={handleQuickWaterAdd}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-xs shadow-sm flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all"
-              >
-                <Plus className="w-3 h-3" />
-                <span>+1 Gelas</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Sleep Hours Control */}
-          <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
-            isDarkMode ? 'bg-gray-800/60 border-gray-700' : 'bg-indigo-50/50 border-indigo-100'
-          }`}>
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                <Moon className="w-3.5 h-3.5" /> Jam Tidur Malam
-              </span>
-              <div className="text-sm font-black flex items-baseline gap-1">
-                <span>{quickCheckin.sleep}</span>
-                <span className="text-[10px] font-normal opacity-60">Jam (Ideal: 7-9 jam)</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleQuickSleepChange(-0.5)}
-                className="w-7 h-7 rounded-xl bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 border border-gray-200 dark:border-gray-600 flex items-center justify-center font-bold text-xs hover:bg-gray-100"
-              >
-                -
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickSleepChange(0.5)}
-                className="w-7 h-7 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm hover:opacity-90 active:scale-95"
-              >
-                +
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* ───────────── HERO BANNER EDUKASI ───────────── */}
       <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-orange-400 text-white p-6 rounded-3xl shadow-md space-y-3 relative overflow-hidden">

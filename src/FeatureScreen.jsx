@@ -40,12 +40,11 @@ export default function FeatureScreen({ user, onOpenProfile, onLogout, onNavigat
     { key: "voicing",    name: "Voicing Rights",     icon: "🗣️", color: "from-orange-400 to-amber-500" },
     { key: "quotes",     name: "Quotes",             icon: "💬", color: "from-pink-400 to-rose-500" },
     { key: "medicine",   name: "Bank Penyakit",      icon: "🏥", color: "from-red-400 to-pink-500" },
-    { key: "mood",       name: "Mood Tracker",       icon: "🎭", color: "from-yellow-400 to-orange-500" },
     { key: "sos",        name: "Panggil Ambulans / PSC 119", icon: "🚑", color: "from-red-600 to-rose-700" },
     { key: "social",     name: "Social Chat",        icon: "🌐", color: "from-violet-400 to-purple-600" },
     { key: "calm",       name: "Calm Corner",        icon: "🌬️", color: "from-sky-400 to-blue-500" },
     { key: "symptom",    name: "Cek Gejala",         icon: "🩺", color: "from-green-400 to-teal-500" },
-    { key: "wellness",   name: "Daily Wellness",     icon: "💧", color: "from-cyan-400 to-sky-500" },
+    { key: "wellness",   name: "Daily Check-in & Mood", icon: "✨", color: "from-teal-400 to-cyan-500" },
   ];
 
   return (
