@@ -14,6 +14,7 @@ import {
 const firebaseConfig = {
   apiKey: "AIzaSyD1zHbpd3QSVZpkTbmosOQ3cA-QtO3oo-o",
   authDomain: "heal-app-83869.firebaseapp.com",
+  databaseURL: "https://heal-app-83869-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "heal-app-83869",
   storageBucket: "heal-app-83869.firebasestorage.app",
   messagingSenderId: "79174316855",
