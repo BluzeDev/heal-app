@@ -172,7 +172,14 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
       }`}>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => { triggerFeedback(); onBack(); }}
+            onClick={() => {
+              triggerFeedback();
+              if (tab === "chat") {
+                setTab("inbox");
+              } else {
+                onBack();
+              }
+            }}
             className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg shadow-sm transition-all ${
               isDarkMode ? "bg-gray-800 text-gray-200 hover:bg-gray-700" : "bg-white text-gray-700 hover:bg-gray-100"
             }`}

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import SkeletonCard from './SkeletonCard'; // Import Skeleton
+import { openExternalUrl } from './utils/openExternalUrl';
+import BadgeDisplay from './components/BadgeDisplay';
 import { Phone, Music2, ExternalLink, School, BookOpen, AlertCircle } from 'lucide-react';
 
 const InstagramIcon = ({ className = "w-3.5 h-3.5" }) => (
@@ -142,6 +144,14 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
         createdAt: serverTimestamp(),
       });
 
+      // Aktivasi lencana gamifikasi 'Pendengar Empati'
+      localStorage.setItem(`heal_empathy_${currentUser}`, 'true');
+      try {
+        updateDoc(doc(db, 'data_login', currentUser), { has_empathy: true });
+      } catch (e) {
+        // Abaikan jika offline / permission
+      }
+
       setContent('');
       setPostImage('');
       setIsAnonymous(false);
@@ -205,6 +215,10 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
         await updateDoc(postRef, {
           likes: arrayUnion(currentUser)
         });
+        localStorage.setItem(`heal_empathy_${currentUser}`, 'true');
+        try {
+          updateDoc(doc(db, 'data_login', currentUser), { has_empathy: true });
+        } catch (e) {}
       }
       fetchPosts();
     } catch (err) {
@@ -652,55 +666,57 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
                   )}
                 </div>
 
-                {/* Social media links */}
-                <div className="flex items-center justify-center gap-2 pt-1">
-                  {(userModalData.username_ig || userModalData.usernameIg) && (
-                    <a
-                      href={`https://instagram.com/${userModalData.username_ig || userModalData.usernameIg}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-950 dark:text-purple-300"
-                    >
-                      <InstagramIcon className="w-3 h-3" />
-                      <span>@{userModalData.username_ig || userModalData.usernameIg}</span>
-                    </a>
-                  )}
-                  {(userModalData.username_tiktok || userModalData.usernameTiktok) && (
-                    <a
-                      href={`https://tiktok.com/@${userModalData.username_tiktok || userModalData.usernameTiktok}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300"
-                    >
-                      <Music2 className="w-3 h-3" />
-                      <span>@{userModalData.username_tiktok || userModalData.usernameTiktok}</span>
-                    </a>
-                  )}
-                </div>
+                  {/* Lencana Gamifikasi */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                    <BadgeDisplay userData={userModalData} isDarkMode={isDarkMode} compact={true} />
+                  </div>
 
-                {/* Tombol Chat via WhatsApp */}
-                <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                  {(userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp) ? (
-                    <a
-                      href={formatWaUrl(
-                        userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp,
-                        userModalData.nama_lengkap || userModalData.nama_panggilan || userModalData.id
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-3 rounded-2xl bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md hover:bg-emerald-600 transition-all"
-                    >
-                      <Phone className="w-4 h-4" />
-                      <span>Chat via WhatsApp</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  ) : (
-                    <div className="p-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 text-xs flex items-center justify-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 opacity-50" />
-                      <span>Nomor WhatsApp belum tersedia</span>
-                    </div>
-                  )}
-                </div>
+                  {/* Social media links */}
+                  <div className="flex items-center justify-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                    {(userModalData.username_ig || userModalData.usernameIg) && (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(`https://instagram.com/${userModalData.username_ig || userModalData.usernameIg}`)}
+                        className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 hover:bg-purple-100 cursor-pointer"
+                      >
+                        <InstagramIcon className="w-3 h-3" />
+                        <span>@{userModalData.username_ig || userModalData.usernameIg}</span>
+                      </button>
+                    )}
+                    {(userModalData.username_tiktok || userModalData.usernameTiktok) && (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(`https://tiktok.com/@${userModalData.username_tiktok || userModalData.usernameTiktok}`)}
+                        className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 cursor-pointer"
+                      >
+                        <Music2 className="w-3 h-3" />
+                        <span>@{userModalData.username_tiktok || userModalData.usernameTiktok}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tombol Chat via WhatsApp */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                    {(userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp) ? (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(formatWaUrl(
+                          userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp,
+                          userModalData.nama_lengkap || userModalData.nama_panggilan || userModalData.id
+                        ))}
+                        className="w-full py-3 rounded-2xl bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md hover:bg-emerald-600 transition-all cursor-pointer"
+                      >
+                        <Phone className="w-4 h-4" />
+                        <span>Chat via WhatsApp</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <div className="p-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 text-xs flex items-center justify-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 opacity-50" />
+                        <span>Nomor WhatsApp belum tersedia</span>
+                      </div>
+                    )}
+                  </div>
               </>
             ) : null}
 

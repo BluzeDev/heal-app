@@ -239,7 +239,7 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
   // 5. Aksi Telepon Langsung 119
   const handleCallHotline = () => {
     triggerFeedback();
-    window.location.href = 'tel:119';
+    openExternalUrl('tel:119');
   };
 
   // 6. Aksi Salin Teks

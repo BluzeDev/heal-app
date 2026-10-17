@@ -36,6 +36,7 @@ export default function FeatureScreen({ user, onOpenProfile, onLogout, onNavigat
     { key: "animation",  name: "Heal Animation",    icon: "🎬", color: "from-purple-500 to-indigo-600" },
     { key: "counselor",  name: "Counselor",          icon: "👩‍⚕️", color: "from-teal-400 to-emerald-500" },
     { key: "schedule",   name: "Health Schedule",    icon: "📅", color: "from-blue-400 to-cyan-500" },
+    { key: "journal",    name: "Jurnal Pribadi & Syukur", icon: "📓", color: "from-violet-500 to-indigo-600" },
     { key: "voicing",    name: "Voicing Rights",     icon: "🗣️", color: "from-orange-400 to-amber-500" },
     { key: "quotes",     name: "Quotes",             icon: "💬", color: "from-pink-400 to-rose-500" },
     { key: "medicine",   name: "Bank Penyakit",      icon: "🏥", color: "from-red-400 to-pink-500" },

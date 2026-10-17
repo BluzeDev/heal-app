@@ -5,6 +5,7 @@ import SkeletonCard from './SkeletonCard';
 import { triggerFeedback } from './utils/feedback';
 import { compressImageFile } from './utils/imageCompressor';
 import { openExternalUrl } from './utils/openExternalUrl';
+import BadgeDisplay from './components/BadgeDisplay';
 import { 
   User, School, BookOpen, Phone, Music2, 
   ArrowLeft, Edit3, Camera, Save, X, ExternalLink 
@@ -78,6 +79,10 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
             usernameIg: data.username_ig || data.usernameIg || '',
             usernameTiktok: data.username_tiktok || data.usernameTiktok || '',
             avatar: data.avatar || '🌸',
+            // Data aktivitas untuk evaluasi lencana gamifikasi
+            read_diseases_count: data.read_diseases_count || (JSON.parse(localStorage.getItem(`heal_read_diseases_${targetUser}`) || '[]').length),
+            has_empathy: data.has_empathy || (localStorage.getItem(`heal_empathy_${targetUser}`) === 'true'),
+            has_health_calc: data.has_health_calc || (localStorage.getItem(`heal_health_calc_${targetUser}`) !== null) || Boolean(data.health_metrics),
           };
           setProfileData(cleanData);
           setEditAvatar(cleanData.avatar);
@@ -101,6 +106,9 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
             usernameIg: '',
             usernameTiktok: '',
             avatar: '🌸',
+            read_diseases_count: (JSON.parse(localStorage.getItem(`heal_read_diseases_${targetUser}`) || '[]').length),
+            has_empathy: (localStorage.getItem(`heal_empathy_${targetUser}`) === 'true'),
+            has_health_calc: (localStorage.getItem(`heal_health_calc_${targetUser}`) !== null),
           });
         }
       } catch (err) {
@@ -120,7 +128,8 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
     if (!file) return;
 
     try {
-      const compressedDataUrl = await compressImageFile(file, 400, 400, 0.75);
+      // Resize gambar menggunakan HTML5 Canvas ke maksimal 256x256, JPEG 0.7 (<50KB)
+      const compressedDataUrl = await compressImageFile(file, 256, 256, 0.7);
       setEditAvatar(compressedDataUrl);
     } catch (err) {
       alert("Gagal memproses foto. Pastikan format file gambar valid.");
@@ -271,6 +280,11 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
               }`}>
                 "{profileData.bio}"
               </p>
+            </div>
+
+            {/* Lencana Apresiasi (Gamifikasi) */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+              <BadgeDisplay userData={profileData} isDarkMode={isDarkMode} />
             </div>
 
             {/* Social & Kontak Links */}

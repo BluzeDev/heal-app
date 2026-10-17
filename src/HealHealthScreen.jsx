@@ -71,9 +71,31 @@ const COMMON_SYMPTOMS = [
 export default function HealHealthScreen({ user, isDarkMode }) {
   const userKey = user ? user : 'guest';
 
-  // BMI Input State
-  const [berat, setBerat] = useState(55);
-  const [tinggi, setTinggi] = useState(165);
+  // Health Calculator & BMI Inputs State
+  const [berat, setBerat] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`heal_health_calc_${userKey}`);
+      return saved ? JSON.parse(saved).berat || 55 : 55;
+    } catch (e) { return 55; }
+  });
+  const [tinggi, setTinggi] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`heal_health_calc_${userKey}`);
+      return saved ? JSON.parse(saved).tinggi || 165 : 165;
+    } catch (e) { return 165; }
+  });
+  const [usia, setUsia] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`heal_health_calc_${userKey}`);
+      return saved ? JSON.parse(saved).usia || 16 : 16;
+    } catch (e) { return 16; }
+  });
+  const [gender, setGender] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`heal_health_calc_${userKey}`);
+      return saved ? JSON.parse(saved).gender || 'Laki-laki' : 'Laki-laki';
+    } catch (e) { return 'Laki-laki'; }
+  });
   const [bmiResult, setBmiResult] = useState(null);
 
   // Health Metrics State
@@ -106,6 +128,10 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     const saved = localStorage.getItem(`heal_water_${userKey}`);
     return saved ? parseInt(saved, 10) : 4;
   });
+  const [waterTargetGlasses, setWaterTargetGlasses] = useState(() => {
+    const saved = localStorage.getItem(`heal_water_target_${userKey}`);
+    return saved ? parseInt(saved, 10) : 8;
+  });
 
   // 2. Sleep Tracker State (Daily Device Activity Detection)
   const [sleepAnalysis, setSleepAnalysis] = useState(() => analyzeDeviceSleep());
@@ -130,7 +156,8 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     const shuffled = [...ALL_HEALTH_TIPS].sort(() => 0.5 - Math.random());
     setRandomTips(shuffled.slice(0, 3));
 
-    calculateBmi(55, 165);
+    // Inisialisasi perhitungan kesehatan
+    calculateHealthMetrics(berat, tinggi, usia, gender, false);
 
     // Refresh sleep analysis
     const analyzed = analyzeDeviceSleep();
@@ -209,41 +236,117 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     );
   };
 
-  // Hitung BMI
-  const calculateBmi = (bb, tb) => {
+  // Hitung IMT (BMI), BMR/TDEE, dan Rekomendasi Hidrasi Remaja
+  const calculateHealthMetrics = (bb, tb, userAge, userGender, shouldSave = true) => {
     if (!bb || !tb) return;
-    const tinggiMeter = tb / 100;
-    const bmi = (bb / (tinggiMeter * tinggiMeter)).toFixed(1);
+    const numBb = parseFloat(bb);
+    const numTb = parseFloat(tb);
+    const numAge = parseInt(userAge, 10) || 16;
+    const genderVal = userGender || 'Laki-laki';
+
+    const tinggiMeter = numTb / 100;
+    const bmi = parseFloat((numBb / (tinggiMeter * tinggiMeter)).toFixed(1));
     
     let category = '';
+    let categoryBadge = '';
     let colorClass = '';
     let bgClass = '';
+    let nutritionTip = '';
 
     if (bmi < 18.5) {
-      category = 'Kurang BB';
+      category = 'Berat Badan Kurang';
+      categoryBadge = '🔵 Berat Kurang';
       colorClass = isDarkMode ? 'text-blue-400' : 'text-blue-600';
       bgClass = isDarkMode ? 'bg-blue-950/40 border-blue-900' : 'bg-blue-50 border-blue-200';
+      nutritionTip = 'Tingkatkan asupan kalori padat nutrisi seperti kacang-kacangan, alpukat, telur, dan susu untuk menunjang tumbuh kembang optimal.';
     } else if (bmi >= 18.5 && bmi <= 24.9) {
-      category = 'Normal';
+      category = 'Normal / Ideal';
+      categoryBadge = '🟢 Normal/Ideal';
       colorClass = isDarkMode ? 'text-green-400' : 'text-green-600';
       bgClass = isDarkMode ? 'bg-green-950/40 border-green-900' : 'bg-green-50 border-green-200';
+      nutritionTip = 'Keren! Berat badanmu ideal. Pertahankan pola makan gizi seimbang (Isi Piringku) dan rutin bergerak aktif minimal 30 menit sehari.';
     } else if (bmi >= 25 && bmi <= 29.9) {
-      category = 'Overweight';
+      category = 'Berat Badan Lebih';
+      categoryBadge = '🟠 Overweight';
       colorClass = isDarkMode ? 'text-amber-400' : 'text-amber-600';
       bgClass = isDarkMode ? 'bg-amber-950/40 border-amber-900' : 'bg-amber-50 border-amber-200';
+      nutritionTip = 'Batasi konsumsi gorengan, minuman manis boba/soda, dan perbanyak serat sayuran hijau serta olahraga cardio ringan.';
     } else {
       category = 'Obesitas';
+      categoryBadge = '🔴 Obesitas';
       colorClass = isDarkMode ? 'text-red-400' : 'text-red-600';
       bgClass = isDarkMode ? 'bg-red-950/40 border-red-900' : 'bg-red-50 border-red-200';
+      nutritionTip = 'Yuk mulai kurangi porsi karbohidrat sederhana dan fast food. Utamakan air putih, protein tanpa lemak, dan jalan kaki 6.000 langkah tiap hari.';
     }
 
-    setBmiResult({ val: bmi, category, colorClass, bgClass });
+    // 2. BMR & TDEE (Mifflin-St Jeor)
+    let bmr = 0;
+    if (genderVal === 'Laki-laki') {
+      bmr = Math.round(10 * numBb + 6.25 * numTb - 5 * numAge + 5);
+    } else {
+      bmr = Math.round(10 * numBb + 6.25 * numTb - 5 * numAge - 161);
+    }
+    const tdee = Math.round(bmr * 1.375); // Faktor aktivitas remaja sekolah
+
+    // 3. Rekomendasi Target Air Putih (~35 ml x berat badan)
+    const waterMl = Math.round(numBb * 35);
+    const waterLiter = (waterMl / 1000).toFixed(1);
+    const waterGlassesRec = Math.max(4, Math.min(16, Math.round(waterMl / 250)));
+
+    const result = {
+      val: bmi,
+      category,
+      categoryBadge,
+      colorClass,
+      bgClass,
+      nutritionTip,
+      bmr,
+      tdee,
+      waterMl,
+      waterLiter,
+      waterGlassesRec,
+      berat: numBb,
+      tinggi: numTb,
+      usia: numAge,
+      gender: genderVal,
+      lastCalculated: new Date().toISOString()
+    };
+
+    setBmiResult(result);
+
+    if (shouldSave) {
+      try {
+        localStorage.setItem(`heal_health_calc_${userKey}`, JSON.stringify(result));
+        localStorage.setItem(`heal_health_calc_${userKey}_done`, 'true');
+        if (user && user !== 'guest') {
+          import('./firebase').then(({ db }) => {
+            import('firebase/firestore').then(({ doc, updateDoc }) => {
+              updateDoc(doc(db, 'data_login', user), {
+                has_health_calc: true,
+                health_metrics: result
+              }).catch(() => {});
+            });
+          });
+        }
+      } catch (e) {}
+    }
+
+    return result;
   };
 
   const handleCalculateBtn = (e) => {
     e.preventDefault();
     triggerFeedback();
-    calculateBmi(berat, tinggi);
+    calculateHealthMetrics(berat, tinggi, usia, gender, true);
+    alert('🎉 Hasil perhitungan IMT, Kalori (BMR/TDEE), dan Hidrasi berhasil disimpan!');
+  };
+
+  const handleSyncWaterTarget = (recommendedGlasses) => {
+    triggerFeedback();
+    const safeGlasses = Math.max(4, Math.min(16, recommendedGlasses || 8));
+    setWaterTargetGlasses(safeGlasses);
+    localStorage.setItem(`heal_water_target_${userKey}`, safeGlasses);
+    alert(`Target harian berhasil disinkronkan ke ${safeGlasses} gelas (${(safeGlasses * 0.25).toFixed(1)} Liter)! 💧`);
   };
 
   const handleSaveMetric = () => {
@@ -692,14 +795,14 @@ export default function HealHealthScreen({ user, isDarkMode }) {
           <h2 className="font-bold text-sm flex items-center gap-2">
             <span>💧</span> Pengingat Minum Air Putih
           </h2>
-          <span className="text-xs font-bold text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full">
-            {waterGlasses} / 8 Gelas (Target)
+          <span className="text-xs font-bold text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+            {waterGlasses} / {waterTargetGlasses} Gelas (Target: {(waterTargetGlasses * 0.25).toFixed(1)} L)
           </span>
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-2">
           <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
-            {Array.from({ length: 8 }).map((_, idx) => (
+            {Array.from({ length: Math.min(16, waterTargetGlasses) }).map((_, idx) => (
               <div 
                 key={idx}
                 className={`w-7 h-10 rounded-xl border flex items-center justify-center text-xs transition-all ${
@@ -730,28 +833,24 @@ export default function HealHealthScreen({ user, isDarkMode }) {
             </button>
           </div>
         </div>
-        <p className="text-[11px] opacity-60">Target ideal remaja adalah 8 gelas (± 2 liter) per hari agar terhindar dari dehidrasi dan pusing.</p>
+        <p className="text-[11px] opacity-60">
+          Target hidrasi harianmu adalah {waterTargetGlasses} gelas (± {(waterTargetGlasses * 0.25).toFixed(1)} liter) berdasarkan rekomendasi metabolisme berat badanmu.
+        </p>
       </div>
 
-      {/* SECTION 5: KALKULATOR BMI */}
+      {/* SECTION 5: KALKULATOR KESEHATAN REMAJA (IMT, BMR/TDEE & HIDRASI) ⚖️ */}
       <div className={`rounded-3xl p-5 shadow-sm border space-y-4 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-pink-100'}`}>
-        <h2 className="font-bold text-sm flex items-center gap-2">
-          <span>⚖️</span> Hitung Indeks Massa Tubuh (BMI)
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold text-sm flex items-center gap-2">
+            <span>⚖️</span> Kalkulator Kesehatan & Gizi Remaja
+          </h2>
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">
+            IMT • BMR/TDEE • Hidrasi
+          </span>
+        </div>
 
-        <form onSubmit={handleCalculateBtn} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs opacity-70 font-medium block mb-1">Berat Badan (kg)</label>
-            <input 
-              type="number"
-              value={berat}
-              onChange={(e) => setBerat(e.target.value)}
-              className={`w-full border rounded-2xl px-4 py-2.5 text-xs outline-none focus:border-pink-400 ${
-                isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-gray-50/50 border-gray-200 text-gray-800'
-              }`}
-              placeholder="Contoh: 55"
-            />
-          </div>
+        <form onSubmit={handleCalculateBtn} className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Tinggi Badan */}
           <div>
             <label className="text-xs opacity-70 font-medium block mb-1">Tinggi Badan (cm)</label>
             <input 
@@ -762,30 +861,152 @@ export default function HealHealthScreen({ user, isDarkMode }) {
                 isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-gray-50/50 border-gray-200 text-gray-800'
               }`}
               placeholder="Contoh: 165"
+              required
             />
           </div>
+
+          {/* Berat Badan */}
+          <div>
+            <label className="text-xs opacity-70 font-medium block mb-1">Berat Badan (kg)</label>
+            <input 
+              type="number"
+              value={berat}
+              onChange={(e) => setBerat(e.target.value)}
+              className={`w-full border rounded-2xl px-4 py-2.5 text-xs outline-none focus:border-pink-400 ${
+                isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-gray-50/50 border-gray-200 text-gray-800'
+              }`}
+              placeholder="Contoh: 55"
+              required
+            />
+          </div>
+
+          {/* Usia */}
+          <div>
+            <label className="text-xs opacity-70 font-medium block mb-1">Usia (Tahun)</label>
+            <input 
+              type="number"
+              value={usia}
+              onChange={(e) => setUsia(e.target.value)}
+              className={`w-full border rounded-2xl px-4 py-2.5 text-xs outline-none focus:border-pink-400 ${
+                isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-gray-50/50 border-gray-200 text-gray-800'
+              }`}
+              placeholder="Contoh: 16"
+              min="10"
+              max="25"
+              required
+            />
+          </div>
+
+          {/* Jenis Kelamin */}
+          <div>
+            <label className="text-xs opacity-70 font-medium block mb-1">Jenis Kelamin</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { triggerFeedback(); setGender('Laki-laki'); }}
+                className={`py-2 rounded-2xl text-xs font-bold border transition-all ${
+                  gender === 'Laki-laki'
+                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                    : isDarkMode
+                    ? 'bg-gray-800 border-gray-700 text-gray-300'
+                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                }`}
+              >
+                👦 Laki-laki
+              </button>
+              <button
+                type="button"
+                onClick={() => { triggerFeedback(); setGender('Perempuan'); }}
+                className={`py-2 rounded-2xl text-xs font-bold border transition-all ${
+                  gender === 'Perempuan'
+                    ? 'bg-pink-500 text-white border-pink-500 shadow-sm'
+                    : isDarkMode
+                    ? 'bg-gray-800 border-gray-700 text-gray-300'
+                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                }`}
+              >
+                👧 Perempuan
+              </button>
+            </div>
+          </div>
+
           <button 
             type="submit"
-            className="md:col-span-2 bg-gradient-to-r from-pink-500 to-orange-400 text-white font-bold py-3 rounded-2xl text-xs shadow-md hover:opacity-95 transition-all"
+            className="md:col-span-2 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-400 text-white font-black py-3 rounded-2xl text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            ✓ Hitung & Konfirmasi BMI
+            <span>🚀</span> Hitung IMT, Kebutuhan Kalori & Rekomendasi Hidrasi
           </button>
         </form>
 
+        {/* HASIL PERHITUNGAN LENGKAP */}
         {bmiResult && (
-          <div className={`p-4 rounded-2xl border ${bmiResult.bgClass} flex items-center justify-between mt-3`}>
-            <div>
-              <p className="text-xs opacity-70 font-medium">BMI Anda Saat Ini</p>
-              <h3 className={`text-2xl font-black ${bmiResult.colorClass}`}>{bmiResult.val}</h3>
+          <div className="space-y-3 pt-1">
+            {/* 1. Skor IMT Card */}
+            <div className={`p-4 rounded-3xl border ${bmiResult.bgClass} space-y-2.5`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] opacity-70 font-bold uppercase tracking-wider">Indeks Massa Tubuh (IMT / BMI)</p>
+                  <h3 className={`text-3xl font-black ${bmiResult.colorClass}`}>{bmiResult.val}</h3>
+                </div>
+                <div className={`px-4 py-1.5 rounded-full text-xs font-black border ${bmiResult.colorClass} ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'} shadow-sm`}>
+                  {bmiResult.categoryBadge || bmiResult.category}
+                </div>
+              </div>
+
+              {/* Saran Nutrisi Ramah Remaja */}
+              <div className="pt-2 border-t border-black/10 dark:border-white/10 text-xs leading-relaxed">
+                <span className="font-bold block text-[11px] mb-0.5">🥗 Saran Nutrisi Ramah Remaja:</span>
+                <p className="opacity-90">{bmiResult.nutritionTip}</p>
+              </div>
             </div>
-            <div className={`px-4 py-1.5 rounded-full text-xs font-bold border ${bmiResult.colorClass} ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'} shadow-sm`}>
-              {bmiResult.category}
+
+            {/* 2. Estimasi Kalori & 3. Rekomendasi Hidrasi Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Kalori BMR / TDEE */}
+              <div className={`p-4 rounded-3xl border ${isDarkMode ? 'bg-gray-800/80 border-gray-700' : 'bg-amber-50/80 border-amber-200 text-amber-950'}`}>
+                <div className="flex items-center gap-2 mb-1 text-amber-600 dark:text-amber-400">
+                  <span className="text-xl">🔥</span>
+                  <span className="text-xs font-black">Estimasi Kalori Harian</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xl font-black text-amber-600 dark:text-amber-400">
+                    {bmiResult.tdee} <span className="text-xs font-bold opacity-80">kkal / hari</span>
+                  </p>
+                  <p className="text-[10px] opacity-75">
+                    <strong>BMR:</strong> {bmiResult.bmr} kkal (energi dasar saat istirahat) • <strong>TDEE:</strong> {bmiResult.tdee} kkal (kebutuhan energi aktivitas belajar & gerak harian).
+                  </p>
+                </div>
+              </div>
+
+              {/* Rekomendasi Hidrasi */}
+              <div className={`p-4 rounded-3xl border flex flex-col justify-between ${isDarkMode ? 'bg-gray-800/80 border-gray-700' : 'bg-blue-50/80 border-blue-200 text-blue-950'}`}>
+                <div>
+                  <div className="flex items-center gap-2 mb-1 text-blue-600 dark:text-blue-400">
+                    <span className="text-xl">💧</span>
+                    <span className="text-xs font-black">Target Hidrasi Harian</span>
+                  </div>
+                  <p className="text-xl font-black text-blue-600 dark:text-blue-400">
+                    {bmiResult.waterLiter} Liter <span className="text-xs font-bold opacity-80">({bmiResult.waterGlassesRec} Gelas)</span>
+                  </p>
+                  <p className="text-[10px] opacity-75 mt-0.5">
+                    Rumus ilmiah: 35 ml × {bmiResult.berat} kg berat badan.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSyncWaterTarget(bmiResult.waterGlassesRec)}
+                  className="mt-3 w-full py-2 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>🔄</span> Sinkronkan ke Target Hidrasi
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         <div className={`text-[11px] p-3 rounded-2xl border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-gray-50 border-gray-100 text-gray-500'}`}>
-          💡 <strong>Kategori BMI:</strong> Kurang (&lt;18.5) | Normal (18.5 - 24.9) | Overweight (25 - 29.9) | Obesitas (&ge;30)
+          💡 <strong>Standar Kemenkes RI:</strong> Kurang (&lt;18.5) • Normal (18.5–24.9) • Lebih (25–29.9) • Obesitas (&ge;30). Hasil perhitungan otomatis disimpan ke profilmu.
         </div>
       </div>
 

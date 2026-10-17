@@ -8,12 +8,39 @@ export default function MedicineScreen({ onBack, onNavigateSymptomChecker, isDar
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDisease, setSelectedDisease] = useState(null);
 
+  const recordDiseaseRead = (diseaseId) => {
+    try {
+      const user = localStorage.getItem('heal_active_user') || 'guest';
+      const readKey = `heal_read_diseases_${user}`;
+      const readSet = new Set(JSON.parse(localStorage.getItem(readKey) || '[]'));
+      readSet.add(diseaseId);
+      const updated = [...readSet];
+      localStorage.setItem(readKey, JSON.stringify(updated));
+      if (user !== 'guest') {
+        import('./firebase').then(({ db }) => {
+          import('firebase/firestore').then(({ doc, updateDoc }) => {
+            updateDoc(doc(db, 'data_login', user), { read_diseases_count: updated.length }).catch(() => {});
+          });
+        });
+      }
+    } catch (e) {}
+  };
+
+  const handleOpenDisease = (disease) => {
+    triggerFeedback();
+    setSelectedDisease(disease);
+    if (disease && disease.id) {
+      recordDiseaseRead(disease.id);
+    }
+  };
+
   // Jika dipanggil dari Rekomendasi Topik Hari Ini dengan initialDiseaseId
   useEffect(() => {
     if (initialDiseaseId) {
       const match = DISEASES_DATA.find(d => d.id === initialDiseaseId || d.name.toLowerCase().includes(initialDiseaseId.toLowerCase()));
       if (match) {
         setSelectedDisease(match);
+        recordDiseaseRead(match.id);
       }
     }
   }, [initialDiseaseId]);
@@ -60,7 +87,14 @@ export default function MedicineScreen({ onBack, onNavigateSymptomChecker, isDar
       }`}>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => { triggerFeedback(); onBack(); }}
+            onClick={() => {
+              triggerFeedback();
+              if (selectedDisease) {
+                setSelectedDisease(null);
+              } else {
+                onBack();
+              }
+            }}
             className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg shadow-sm transition-all ${
               isDarkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-pink-50'
             }`}
@@ -175,7 +209,7 @@ export default function MedicineScreen({ onBack, onNavigateSymptomChecker, isDar
             {filteredDiseases.map((disease) => (
               <div
                 key={disease.id}
-                onClick={() => { triggerFeedback(); setSelectedDisease(disease); }}
+                onClick={() => handleOpenDisease(disease)}
                 className={`p-4 rounded-3xl border shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group ${
                   isDarkMode ? 'bg-gray-900 border-gray-800 hover:border-pink-900' : 'bg-white border-pink-100 hover:border-pink-300'
                 }`}

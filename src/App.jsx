@@ -17,6 +17,7 @@ import SocialScreen from './SocialScreen';
 import CalmCornerScreen from './CalmCornerScreen';
 import SymptomCheckerScreen from './SymptomCheckerScreen';
 import WellnessScreen from './WellnessScreen';
+import PrivateJournalScreen from './PrivateJournalScreen';
 import BottomNav from './BottomNav';
 import ScrollToTop from './ScrollToTop';
 import NetworkStatusBanner from './NetworkStatusBanner';
@@ -27,6 +28,8 @@ import CookieConsentBanner from './CookieConsentBanner'; // Banner izin cookie u
 import { checkAndUpdateStreak } from './utils/quizData';
 import { triggerFeedback } from './utils/feedback';
 import { initDeviceActivityTracker } from './utils/sleepTracker';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 export default function App() {
   // Inisialisasi pelacak aktivitas layar untuk analisis tidur remaja
@@ -121,6 +124,69 @@ export default function App() {
     };
   }, [user]);
 
+  // 📱 Penanganan Tombol Back HP Android (Capacitor Hardware Back & Browser popstate)
+  useEffect(() => {
+    // 1. Web popstate listener untuk mode Browser / PWA
+    const handlePopState = () => {
+      if (isSearching) {
+        setIsSearching(false);
+        return;
+      }
+      if (showQuizModal) {
+        setShowQuizModal(false);
+        return;
+      }
+      if (subScreen) {
+        setSubScreen(null);
+        setSelectedDiseaseId(null);
+        setViewUserProfile(null);
+        return;
+      }
+      if (currentTab !== 'home') {
+        setCurrentTab('home');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    // 2. Capacitor Android Hardware Back Button listener
+    let capBackListener = null;
+    if (Capacitor.isNativePlatform()) {
+      CapApp.addListener('backButton', () => {
+        if (isSearching) {
+          setIsSearching(false);
+          return;
+        }
+        if (showQuizModal) {
+          setShowQuizModal(false);
+          return;
+        }
+        if (subScreen) {
+          triggerFeedback();
+          setSubScreen(null);
+          setSelectedDiseaseId(null);
+          setViewUserProfile(null);
+          return;
+        }
+        if (currentTab !== 'home') {
+          triggerFeedback();
+          setCurrentTab('home');
+          return;
+        }
+        // Jika sudah di Home tanpa modal & subScreen, keluar dari APK
+        CapApp.exitApp();
+      }).then(listener => {
+        capBackListener = listener;
+      });
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (capBackListener && capBackListener.remove) {
+        capBackListener.remove();
+      }
+    };
+  }, [subScreen, currentTab, isSearching, showQuizModal]);
+
   const toggleDarkMode = () => {
     triggerFeedback();
     setIsDarkMode(!isDarkMode);
@@ -129,6 +195,7 @@ export default function App() {
   const handleSelectTopic = (topicKey) => {
     triggerFeedback();
     setSelectedTopic(topicKey);
+    window.history.pushState({ subScreen: 'topic-detail' }, '');
     setSubScreen('topic-detail');
   };
 
@@ -137,12 +204,14 @@ export default function App() {
     if (extraData) {
       setSelectedDiseaseId(extraData);
     }
+    window.history.pushState({ subScreen: featureKey }, '');
     setSubScreen(featureKey);
   };
 
   const handleOpenUserProfile = (targetUsername) => {
     triggerFeedback();
     setViewUserProfile(targetUsername);
+    window.history.pushState({ subScreen: 'profile' }, '');
     setSubScreen('profile');
   };
 
@@ -245,6 +314,12 @@ export default function App() {
               />
             ) : subScreen === 'schedule' ? (
               <HealthScheduleScreen 
+                currentUser={user}
+                onBack={() => { triggerFeedback(); setSubScreen(null); }} 
+                isDarkMode={isDarkMode}
+              />
+            ) : subScreen === 'journal' ? (
+              <PrivateJournalScreen 
                 currentUser={user}
                 onBack={() => { triggerFeedback(); setSubScreen(null); }} 
                 isDarkMode={isDarkMode}

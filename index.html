@@ -14,13 +14,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Registrasi Service Worker untuk Mode Offline & PWA -->
+    <!-- Registrasi Service Worker untuk Mode Offline & PWA (Hanya aktif di Web Browser, dilewati di Native APK) -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('Service Worker terdaftar: ', reg.scope))
-            .catch((err) => console.log('Pendaftaran Service Worker gagal: ', err));
+          if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
+            navigator.serviceWorker.register('/sw.js')
+              .then((reg) => console.log('Service Worker terdaftar: ', reg.scope))
+              .catch((err) => console.log('Pendaftaran Service Worker gagal: ', err));
+          } else {
+            console.log('Native Capacitor platform terdeteksi: Pendaftaran Service Worker dilewati untuk menghindari konflik cache.');
+          }
         });
       }
     </script>
