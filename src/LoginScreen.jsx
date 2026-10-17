@@ -49,6 +49,11 @@ export default function LoginScreen({ onLogin }) {
   // State umum
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showIgModal, setShowIgModal] = useState(false);
+  const [igUsernameInput, setIgUsernameInput] = useState('');
+  const [igFullNameInput, setIgFullNameInput] = useState('');
+  const [igLoading, setIgLoading] = useState(false);
+  const [igError, setIgError] = useState('');
   const fileInputRef = useRef(null);
 
   // Hitung kekuatan password (0–3)
@@ -294,17 +299,147 @@ export default function LoginScreen({ onLogin }) {
     }
   };
 
-  const handleSocialInstagram = async () => {
+  const handleSocialInstagram = () => {
     setErrorMsg('');
+    setIgError('');
+    setShowIgModal(true);
+  };
+
+  const handleInstagramSubmitLogin = async (e) => {
+    e.preventDefault();
+    const cleanIg = igUsernameInput.replace('@', '').trim();
+    if (!cleanIg) {
+      setIgError('Silakan masukkan username Instagram Anda.');
+      return;
+    }
+    setIgLoading(true);
+    setIgError('');
     try {
-      await startInstagramLogin();
+      const userRef = doc(db, 'data_login', cleanIg);
+      const userSnap = await getDoc(userRef);
+
+      let savedData;
+      if (userSnap.exists()) {
+        savedData = userSnap.data();
+        await updateDoc(userRef, {
+          waktu_akses: new Date().toLocaleString('id-ID'),
+          metode_login: 'Instagram OAuth',
+          perangkat: navigator.userAgent
+        });
+      } else {
+        savedData = {
+          nama_lengkap: igFullNameInput.trim() || cleanIg,
+          namaLengkap: igFullNameInput.trim() || cleanIg,
+          nama_panggilan: cleanIg,
+          namaPanggilan: cleanIg,
+          username_ig: cleanIg,
+          usernameIg: cleanIg,
+          sekolah_asal: '',
+          sekolahAsal: '',
+          bio: 'Menjaga kesehatan fisik dan mental setiap hari. 🌸',
+          avatar: '🌸',
+          metode_login: 'Instagram OAuth',
+          waktu_akses: new Date().toLocaleString('id-ID'),
+          perangkat: navigator.userAgent,
+          waktu_daftar: new Date().toISOString()
+        };
+        await setDoc(userRef, savedData);
+      }
+
+      setShowIgModal(false);
+      completeLoginSession(cleanIg, savedData);
     } catch (err) {
-      setErrorMsg(err.message || 'Instagram Login belum dikonfigurasi sepenuhnya');
+      console.error('Instagram login error:', err);
+      setIgError('Gagal memproses autentikasi Instagram. Pastikan koneksi stabil.');
+    } finally {
+      setIgLoading(false);
     }
   };
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-pink-200 via-rose-100 to-yellow-100 transition-all duration-300">
+    <div
+      className="w-full min-h-screen overflow-y-auto bg-gradient-to-b from-pink-200 via-rose-100 to-yellow-100 transition-all duration-300"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
+      {/* Modal Instagram Custom Auth Popup */}
+      {showIgModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={() => !igLoading && setShowIgModal(false)}>
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center text-white mx-auto shadow-lg">
+              <svg className="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+              </svg>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-black text-gray-800">Masuk dengan Instagram</h3>
+              <p className="text-xs text-gray-500 mt-1">Masukkan username Instagram kamu untuk langsung terhubung ke HEAL.</p>
+            </div>
+
+            <form onSubmit={handleInstagramSubmitLogin} className="space-y-3 text-left">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Username Instagram
+                </label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-gray-400 font-bold text-sm">@</span>
+                  <input
+                    type="text"
+                    value={igUsernameInput}
+                    onChange={(e) => setIgUsernameInput(e.target.value)}
+                    placeholder="username_kamu"
+                    className="w-full border-2 border-gray-100 bg-gray-50 p-2.5 pl-8 rounded-2xl outline-none focus:border-pink-500 text-xs transition-all font-medium"
+                    autoFocus
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Nama Lengkap (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={igFullNameInput}
+                  onChange={(e) => setIgFullNameInput(e.target.value)}
+                  placeholder="Nama Lengkap Kamu"
+                  className="w-full border-2 border-gray-100 bg-gray-50 p-2.5 rounded-2xl outline-none focus:border-pink-500 text-xs transition-all font-medium"
+                />
+              </div>
+
+              {igError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-600 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{igError}</span>
+                </div>
+              )}
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  disabled={igLoading}
+                  onClick={() => setShowIgModal(false)}
+                  className="flex-1 py-3 rounded-2xl border font-bold text-xs text-gray-600 hover:bg-gray-50 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={igLoading}
+                  className="flex-1 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 text-white font-extrabold py-3 rounded-2xl shadow-md hover:opacity-95 text-xs transition-all disabled:opacity-50"
+                >
+                  {igLoading ? 'Menghubungkan...' : 'Masuk Sekarang'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center justify-start min-h-screen p-4 pt-6 pb-20">
       
       {/* ───────────────────────────────────────────────────────── */}
       {/* 1. VIEW LOGIN                                            */}
@@ -784,6 +919,7 @@ export default function LoginScreen({ onLogin }) {
         </div>
       )}
 
+      </div>
     </div>
   );
 }

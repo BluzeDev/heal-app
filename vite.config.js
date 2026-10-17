@@ -8,4 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    headers: {
+      // Cross-Origin-Opener-Policy: same-origin-allow-popups agar popup Google Sign-In bisa bekerja
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    },
+  },
+  // Pastikan asset di public bisa diakses
+  publicDir: 'public',
 })

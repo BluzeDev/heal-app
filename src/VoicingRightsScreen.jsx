@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import SkeletonCard from './SkeletonCard'; // Import Skeleton
+import { Phone, Music2, ExternalLink, School, BookOpen, AlertCircle } from 'lucide-react';
+
+const InstagramIcon = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+  </svg>
+);
 
 export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack, isDarkMode }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // User Profile Modal State
+  const [selectedUserModal, setSelectedUserModal] = useState(null);
+  const [userModalData, setUserModalData] = useState(null);
+  const [loadingUserModal, setLoadingUserModal] = useState(false);
 
   // Form Postingan Baru
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -26,6 +40,12 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('Semua');
 
   const categoriesList = ['Curhat', 'Akademik', 'Sosial', 'Tips & Motivasi'];
+
+  const EMPATHY_REACTIONS = [
+    { key: 'hug',    emoji: '🫂', label: 'Peluk Virtual' },
+    { key: 'notAlone', emoji: '💙', label: 'Kamu Nggak Sendiri' },
+    { key: 'semangat', emoji: '🔥', label: 'Semangat' },
+  ];
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -111,7 +131,7 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
     setSubmitting(true);
     try {
       await addDoc(collection(db, "voicing_rights"), {
-        author: isAnonymous ? 'Anonim 🌸' : currentUser,
+        author: isAnonymous ? 'Sobat HEAL (Anonim)' : currentUser,
         isAnonymous: isAnonymous,
         category: category,
         content: content,
@@ -189,6 +209,59 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
       fetchPosts();
     } catch (err) {
       console.error("Gagal menyukai postingan:", err);
+    }
+  };
+
+  // Buka Modal Profil Penulis
+  const handleAuthorClick = async (authorName, isAnon) => {
+    if (isAnon || authorName.includes('Anonim')) {
+      alert('Postingan ini dikirim secara anonim untuk menjaga privasi curhat Sobat HEAL.');
+      return;
+    }
+    setSelectedUserModal(authorName);
+    setLoadingUserModal(true);
+    try {
+      const snap = await getDoc(doc(db, 'data_login', authorName));
+      if (snap.exists()) {
+        setUserModalData({ id: authorName, ...snap.data() });
+      } else {
+        setUserModalData({ id: authorName, nama_panggilan: authorName });
+      }
+    } catch (err) {
+      console.error('Gagal mengambil profil user:', err);
+      setUserModalData({ id: authorName });
+    } finally {
+      setLoadingUserModal(false);
+    }
+  };
+
+  const formatWaUrl = (noHp, name) => {
+    if (!noHp) return null;
+    let clean = noHp.replace(/[^0-9]/g, '');
+    if (clean.startsWith('08')) {
+      clean = '628' + clean.slice(2);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
+    }
+    const templateMessage = `Halo ${name || 'Teman HEAL'}, salam kenal! Aku melihat postinganmu di Voicing Rights aplikasi HEAL...`;
+    return `https://wa.me/${clean}?text=${encodeURIComponent(templateMessage)}`;
+  };
+
+  // Toggle Empathy Reaction
+  const handleEmpathyReaction = async (post, reactionKey) => {
+    try {
+      const postRef = doc(db, 'voicing_rights', post.id);
+      const field = `reactions_${reactionKey}`;
+      const current = (post[field] || []);
+      const hasReacted = current.includes(currentUser);
+      if (hasReacted) {
+        await updateDoc(postRef, { [field]: arrayRemove(currentUser) });
+      } else {
+        await updateDoc(postRef, { [field]: arrayUnion(currentUser) });
+      }
+      fetchPosts();
+    } catch (err) {
+      console.error('Gagal reaksi empati:', err);
     }
   };
 
@@ -302,7 +375,9 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
                     onChange={(e) => setIsAnonymous(e.target.checked)}
                     className="rounded accent-pink-500 cursor-pointer"
                   />
-                  <label htmlFor="anon" className="cursor-pointer select-none text-[11px] opacity-80">Kirim Anonim</label>
+                  <label htmlFor="anon" className="cursor-pointer select-none text-[11px] opacity-80">
+                    Kirim sebagai Anonim (Sembunyikan Identitas)
+                  </label>
                 </div>
               </div>
 
@@ -371,8 +446,8 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
                       <span className="text-lg">🌸</span>
                       <div>
                         <span 
-                          onClick={() => !post.isAnonymous && onViewProfile(post.author)}
-                          className={`font-bold text-xs ${post.isAnonymous ? 'cursor-default opacity-80' : 'cursor-pointer hover:underline text-pink-500'}`}
+                          onClick={() => handleAuthorClick(post.author, post.isAnonymous)}
+                          className={`font-bold text-xs ${post.isAnonymous ? 'cursor-default opacity-80 text-gray-500' : 'cursor-pointer hover:underline text-pink-500'}`}
                         >
                           {post.author}
                         </span>
@@ -449,17 +524,38 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
                     </div>
                   )}
 
-                  {/* Tombol Like & Info Komentar */}
-                  <div className="flex items-center gap-4 pt-2 border-t border-gray-100/10 text-xs">
-                    <button 
-                      onClick={() => handleLikePost(post)}
-                      className={`flex items-center gap-1.5 font-bold transition-all ${hasLiked ? 'text-pink-500 scale-105' : 'opacity-60 hover:opacity-100'}`}
-                    >
-                      <span>{hasLiked ? '❤️' : '🤍'}</span>
-                      <span>{(post.likes || []).length} Suka</span>
-                    </button>
-                    <div className="opacity-60 font-bold">
-                      💬 {(post.comments || []).length} Komentar
+                  {/* Tombol Like, Empathy Reactions & Info Komentar */}
+                  <div className="pt-2 border-t border-gray-100/10 space-y-2">
+                    <div className="flex items-center gap-3 text-xs">
+                      <button 
+                        onClick={() => handleLikePost(post)}
+                        className={`flex items-center gap-1.5 font-bold transition-all ${hasLiked ? 'text-pink-500 scale-105' : 'opacity-60 hover:opacity-100'}`}
+                      >
+                        <span>{hasLiked ? '❤️' : '🤍'}</span>
+                        <span>{(post.likes || []).length} Suka</span>
+                      </button>
+                      <div className="opacity-60 font-bold">
+                        💬 {(post.comments || []).length} Komentar
+                      </div>
+                    </div>
+                    {/* Empathy Reactions */}
+                    <div className="flex gap-2 flex-wrap">
+                      {EMPATHY_REACTIONS.map(r => {
+                        const field = `reactions_${r.key}`;
+                        const reacted = (post[field] || []).includes(currentUser);
+                        const count = (post[field] || []).length;
+                        return (
+                          <button
+                            key={r.key}
+                            onClick={() => handleEmpathyReaction(post, r.key)}
+                            className={`flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${reacted ? 'bg-pink-100 border-pink-300 text-pink-600 scale-105' : isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-pink-50'}`}
+                          >
+                            <span>{r.emoji}</span>
+                            <span>{r.label}</span>
+                            {count > 0 && <span className="ml-0.5 font-black">{count}</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -502,6 +598,121 @@ export default function VoicingRightsScreen({ currentUser, onViewProfile, onBack
         </div>
 
       </div>
+
+      {/* ───────────── MODAL DETAIL PROFIL PENGGUNA & CHAT WA ───────────── */}
+      {selectedUserModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={() => { setSelectedUserModal(null); setUserModalData(null); }}
+        >
+          <div 
+            className={`rounded-3xl max-w-sm w-full p-6 shadow-2xl border space-y-4 text-center ${
+              isDarkMode ? 'bg-gray-900 border-gray-700 text-gray-100' : 'bg-white border-pink-100 text-gray-800'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {loadingUserModal ? (
+              <div className="py-8 space-y-2">
+                <div className="w-16 h-16 rounded-full bg-pink-100 animate-pulse mx-auto" />
+                <p className="text-xs opacity-60">Memuat profil...</p>
+              </div>
+            ) : userModalData ? (
+              <>
+                {/* Avatar */}
+                <div className="w-20 h-20 rounded-full border-4 border-pink-300 mx-auto overflow-hidden flex items-center justify-center text-4xl shadow-md bg-pink-50 dark:bg-gray-800">
+                  {userModalData.avatar && (userModalData.avatar.startsWith('data:') || userModalData.avatar.startsWith('http')) ? (
+                    <img src={userModalData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    userModalData.avatar || '🌸'
+                  )}
+                </div>
+
+                {/* Nama & Info */}
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black">{userModalData.nama_lengkap || userModalData.namaLengkap || userModalData.id}</h3>
+                  <p className="text-xs font-bold text-pink-500">@{userModalData.nama_panggilan || userModalData.namaPanggilan || userModalData.id}</p>
+                  
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-[11px]">
+                    {(userModalData.sekolah_asal || userModalData.sekolahAsal) && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-medium flex items-center gap-1">
+                        <School className="w-3 h-3 text-pink-500" /> {userModalData.sekolah_asal || userModalData.sekolahAsal}
+                      </span>
+                    )}
+                    {userModalData.kelas && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 font-medium flex items-center gap-1">
+                        <BookOpen className="w-3 h-3 text-indigo-500" /> Kelas {userModalData.kelas}
+                      </span>
+                    )}
+                  </div>
+
+                  {userModalData.bio && (
+                    <p className="text-xs italic opacity-80 pt-2 px-2 leading-relaxed">
+                      "{userModalData.bio}"
+                    </p>
+                  )}
+                </div>
+
+                {/* Social media links */}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  {(userModalData.username_ig || userModalData.usernameIg) && (
+                    <a
+                      href={`https://instagram.com/${userModalData.username_ig || userModalData.usernameIg}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-950 dark:text-purple-300"
+                    >
+                      <InstagramIcon className="w-3 h-3" />
+                      <span>@{userModalData.username_ig || userModalData.usernameIg}</span>
+                    </a>
+                  )}
+                  {(userModalData.username_tiktok || userModalData.usernameTiktok) && (
+                    <a
+                      href={`https://tiktok.com/@${userModalData.username_tiktok || userModalData.usernameTiktok}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                    >
+                      <Music2 className="w-3 h-3" />
+                      <span>@{userModalData.username_tiktok || userModalData.usernameTiktok}</span>
+                    </a>
+                  )}
+                </div>
+
+                {/* Tombol Chat via WhatsApp */}
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                  {(userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp) ? (
+                    <a
+                      href={formatWaUrl(
+                        userModalData.no_hp || userModalData.noHp || userModalData.noWhatsapp,
+                        userModalData.nama_lengkap || userModalData.nama_panggilan || userModalData.id
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 rounded-2xl bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md hover:bg-emerald-600 transition-all"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>Chat via WhatsApp</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 text-xs flex items-center justify-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 opacity-50" />
+                      <span>Nomor WhatsApp belum tersedia</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
+
+            <button
+              onClick={() => { setSelectedUserModal(null); setUserModalData(null); }}
+              className="w-full py-2 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-xs hover:bg-gray-200"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

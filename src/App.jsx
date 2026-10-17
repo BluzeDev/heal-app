@@ -13,6 +13,10 @@ import HealHealthScreen from './HealHealthScreen';
 import ProfileScreen from './ProfileScreen';
 import MoodTrackerScreen from './MoodTrackerScreen';
 import EmergencySOSScreen from './EmergencySOSScreen';
+import SocialScreen from './SocialScreen';
+import CalmCornerScreen from './CalmCornerScreen';
+import SymptomCheckerScreen from './SymptomCheckerScreen';
+import WellnessScreen from './WellnessScreen';
 import BottomNav from './BottomNav';
 import ScrollToTop from './ScrollToTop';
 import NetworkStatusBanner from './NetworkStatusBanner';
@@ -43,6 +47,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
   const [subScreen, setSubScreen] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState('Stress');
+  const [selectedDiseaseId, setSelectedDiseaseId] = useState(null);
   const [viewUserProfile, setViewUserProfile] = useState(null);
 
   // QoL: Streak & Daily Quiz States
@@ -127,8 +132,11 @@ export default function App() {
     setSubScreen('topic-detail');
   };
 
-  const handleFeatureNavigate = (featureKey) => {
+  const handleFeatureNavigate = (featureKey, extraData) => {
     triggerFeedback();
+    if (extraData) {
+      setSelectedDiseaseId(extraData);
+    }
     setSubScreen(featureKey);
   };
 
@@ -158,9 +166,21 @@ export default function App() {
             <DailyQuizModal currentUser={user} onClose={() => setShowQuizModal(false)} isDarkMode={isDarkMode} />
           )}
 
-          {/* Top Bar: Streak Widget, Quick Search, & Dark Mode Toggle */}
+          {/* Top Bar: Streak Widget, Quick Search, Social Chat & Dark Mode Toggle */}
           <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
             <StreakWidget streakCount={streakCount} isDarkMode={isDarkMode} />
+
+            {/* Tombol Social & Chat di Header Bar */}
+            <button
+              onClick={() => { triggerFeedback(); setSubScreen('social'); }}
+              className={`h-10 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-black shadow-md transition-all ${
+                isDarkMode ? 'bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900' : 'bg-white text-purple-600 hover:bg-purple-50'
+              }`}
+              title="Social & Chat HEAL"
+            >
+              <span className="text-base">💬</span>
+              <span className="hidden sm:inline">Social</span>
+            </button>
 
             <button
               onClick={() => { triggerFeedback(); setIsSearching(!isSearching); }}
@@ -243,7 +263,9 @@ export default function App() {
               />
             ) : subScreen === 'medicine' ? (
               <MedicineScreen 
-                onBack={() => { triggerFeedback(); setSubScreen(null); }} 
+                initialDiseaseId={selectedDiseaseId}
+                onNavigateSymptomChecker={() => setSubScreen('symptom')}
+                onBack={() => { triggerFeedback(); setSubScreen(null); setSelectedDiseaseId(null); }} 
                 isDarkMode={isDarkMode}
               />
             ) : subScreen === 'mood' ? (
@@ -254,7 +276,36 @@ export default function App() {
               />
             ) : subScreen === 'sos' ? (
               <EmergencySOSScreen 
+                currentUser={user}
                 onBack={() => { triggerFeedback(); setSubScreen(null); }} 
+                isDarkMode={isDarkMode}
+              />
+            ) : subScreen === 'social' ? (
+              <SocialScreen
+                currentUser={user}
+                onBack={() => { triggerFeedback(); setSubScreen(null); }}
+                isDarkMode={isDarkMode}
+              />
+            ) : subScreen === 'calm' ? (
+              <CalmCornerScreen
+                onBack={() => { triggerFeedback(); setSubScreen(null); }}
+                isDarkMode={isDarkMode}
+              />
+            ) : subScreen === 'symptom' ? (
+              <SymptomCheckerScreen
+                onSelectDisease={(diseaseId) => {
+                  triggerFeedback();
+                  setSelectedDiseaseId(diseaseId);
+                  setSubScreen('medicine');
+                }}
+                onNavigate={(screen) => setSubScreen(screen)}
+                onBack={() => { triggerFeedback(); setSubScreen(null); }}
+                isDarkMode={isDarkMode}
+              />
+            ) : subScreen === 'wellness' ? (
+              <WellnessScreen
+                currentUser={user}
+                onBack={() => { triggerFeedback(); setSubScreen(null); }}
                 isDarkMode={isDarkMode}
               />
             ) : subScreen === 'profile' ? (

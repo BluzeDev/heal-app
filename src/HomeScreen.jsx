@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { triggerFeedback } from './utils/feedback';
-import InstallPWAButton from './InstallPWAButton'; // Import komponen tombol PWA permanen
+import InstallPWAButton from './InstallPWAButton';
+import { DISEASES_DATA } from './data/diseasesData';
+import { ArrowRight, Sparkles, UserCheck, AlertCircle, Heart, Wind, Droplets, Stethoscope, MessageCircle } from 'lucide-react';
 
 const SPIRIT_QUOTES = [
   "Semangat menjalani hari ini!",
@@ -17,61 +19,85 @@ const SPIRIT_QUOTES = [
   "Apapun tantangannya hari ini, percaya deh kamu pasti sanggup melaluinya."
 ];
 
-const ALL_TOPICS_CATALOG = [
-  { key: 'Stress', name: 'Stress & Cemas', icon: '🤯', bg: 'bg-orange-100', darkBg: 'bg-orange-950/40', text: 'text-orange-500' },
-  { key: 'Mood', name: 'Mood Swing', icon: '🎭', bg: 'bg-pink-100', darkBg: 'bg-pink-950/40', text: 'text-pink-500' },
-  { key: 'Sleep', name: 'Kualitas Tidur', icon: '😴', bg: 'bg-purple-100', darkBg: 'bg-purple-950/40', text: 'text-purple-500' },
-  { key: 'Social', name: 'Hubungan Sosial', icon: '🤝', bg: 'bg-blue-100', darkBg: 'bg-blue-950/40', text: 'text-blue-500' },
-  { key: 'Burnout', name: 'Burnout Belajar', icon: '🔥', bg: 'bg-red-100', darkBg: 'bg-red-950/40', text: 'text-red-500' },
-  { key: 'Confidence', name: 'Kepercayaan Diri', icon: '✨', bg: 'bg-yellow-100', darkBg: 'bg-yellow-950/40', text: 'text-yellow-500' },
-  { key: 'Overthinking', name: 'Overthinking', icon: '🌀', bg: 'bg-indigo-100', darkBg: 'bg-indigo-950/40', text: 'text-indigo-500' },
-  { key: 'BodyImage', name: 'Body Image', icon: '🪞', bg: 'bg-rose-100', darkBg: 'bg-rose-950/40', text: 'text-rose-500' }
-];
-
 export default function HomeScreen({ user, onOpenProfile, onLogout, onSelectTopic, onNavigate, isDarkMode }) {
   const [randomGreeting, setRandomGreeting] = useState("Semangat menjalani hari ini!");
-  const [displayedTopics, setDisplayedTopics] = useState([]);
-  const [userAvatar, setUserAvatar] = useState('🌸');
+  const [dailyDiseases, setDailyDiseases] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  const [showIncompleteBanner, setShowIncompleteBanner] = useState(false);
 
   useEffect(() => {
-    const randomQuoteIdx = Math.floor(Math.random() * SPIRIT_QUOTES.length);
-    setRandomGreeting(SPIRIT_QUOTES[randomQuoteIdx]);
+    // 1. Daily Deterministic Seed berbasis tanggal hari ini (contoh: "2026-10-17")
+    const todaySeed = new Date().toISOString().slice(0, 10);
+    let hash = 0;
+    for (let i = 0; i < todaySeed.length; i++) {
+      hash = (hash << 5) - hash + todaySeed.charCodeAt(i);
+      hash |= 0;
+    }
+    const absHash = Math.abs(hash);
 
-    const shuffledTopics = [...ALL_TOPICS_CATALOG].sort(() => 0.5 - Math.random());
-    setDisplayedTopics(shuffledTopics.slice(0, 8));
+    // Seeded shuffle dataset Bank Penyakit
+    const seededDiseases = [...DISEASES_DATA].sort((a, b) => {
+      const ha = (absHash + a.id.charCodeAt(0) * 17) % 97;
+      const hb = (absHash + b.id.charCodeAt(0) * 17) % 97;
+      return ha - hb;
+    });
 
-    const fetchUserAvatar = async () => {
+    // Ambil 6 topik penyakit harian
+    setDailyDiseases(seededDiseases.slice(0, 6));
+
+    const quoteIdx = absHash % SPIRIT_QUOTES.length;
+    setRandomGreeting(SPIRIT_QUOTES[quoteIdx]);
+
+    // 2. Fetch User Profile & Cek kelengkapan data
+    const fetchUserData = async () => {
       if (!user) return;
       try {
         const userDocRef = doc(db, 'data_login', user);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           const data = userDocSnap.data();
-          if (data.avatar) setUserAvatar(data.avatar);
+          setUserProfile(data);
+
+          // Pengecekan profil belum lengkap (Bio, Sekolah, No HP, IG, atau TikTok)
+          const isBioEmpty = !data.bio || data.bio === 'Menjaga kesehatan fisik dan mental setiap hari. 🌸';
+          const isSekolahEmpty = !data.sekolah_asal && !data.sekolahAsal;
+          const isNoHpEmpty = !data.no_hp && !data.noHp && !data.noWhatsapp;
+          const isIgEmpty = !data.username_ig && !data.usernameIg;
+
+          if (isBioEmpty || isSekolahEmpty || isNoHpEmpty || isIgEmpty) {
+            setShowIncompleteBanner(true);
+          } else {
+            setShowIncompleteBanner(false);
+          }
         }
       } catch (err) {
-        console.error("Gagal load avatar:", err);
+        console.error("Gagal load profil user di HomeScreen:", err);
       }
     };
-    fetchUserAvatar();
+
+    fetchUserData();
   }, [user]);
 
   const renderAvatarContent = (avatarVal, uname) => {
     if (avatarVal && (avatarVal.startsWith('data:image') || avatarVal.startsWith('http'))) {
       return <img src={avatarVal} alt="Avatar" className="w-full h-full object-cover" />;
     }
-    if (avatarVal === 'initial_auto') {
+    if (avatarVal === 'initial_auto' || !avatarVal) {
       return uname ? uname.charAt(0).toUpperCase() : 'U';
     }
     return avatarVal;
   };
 
+  const userAvatar = userProfile?.avatar || '🌸';
+  const displayName = userProfile?.nama_panggilan || userProfile?.namaPanggilan || userProfile?.nama_lengkap || user || 'Sobat HEAL';
+
   return (
-    <div className={`p-5 space-y-6 max-w-4xl mx-auto pb-24 transition-colors duration-300 ${isDarkMode ? 'bg-black text-gray-100' : 'bg-transparent text-gray-800'}`}>
-      
-      {/* Header Profile & Logout */}
+    <div className={`p-4 md:p-6 space-y-5 max-w-4xl mx-auto pb-28 transition-colors duration-300 ${
+      isDarkMode ? 'bg-black text-gray-100' : 'bg-transparent text-gray-800'
+    }`}>
+      {/* ───────────── HEADER PROFIL & LOGOUT ───────────── */}
       <div className={`p-4 rounded-3xl shadow-sm border flex items-center justify-between ${
-        isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white/70 border-white backdrop-blur-md'
+        isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white/80 border-white backdrop-blur-md'
       }`}>
         <div 
           onClick={() => { triggerFeedback(); onOpenProfile(); }}
@@ -81,10 +107,12 @@ export default function HomeScreen({ user, onOpenProfile, onLogout, onSelectTopi
             {renderAvatarContent(userAvatar, user)}
           </div>
           <div>
-            <h1 className={`font-extrabold text-base transition-colors ${isDarkMode ? 'text-gray-100 group-hover:text-pink-400' : 'text-gray-800 group-hover:text-pink-500'}`}>
-              Hai, {user || 'Teman HEAL'}! 👋
+            <h1 className={`font-black text-sm md:text-base transition-colors ${
+              isDarkMode ? 'text-gray-100 group-hover:text-pink-400' : 'text-gray-800 group-hover:text-pink-500'
+            }`}>
+              Hai, {displayName}! 👋
             </h1>
-            <p className="text-xs text-pink-400 font-medium mt-0.5 animate-pulse">
+            <p className="text-[11px] text-pink-500 font-bold mt-0.5 animate-pulse line-clamp-1">
               ✨ {randomGreeting}
             </p>
           </div>
@@ -100,55 +128,165 @@ export default function HomeScreen({ user, onOpenProfile, onLogout, onSelectTopi
         </button>
       </div>
 
-      {/* Tombol Install PWA Permanen (Selalu Muncul & Interaktif) */}
+      {/* ───────────── ANNOUNCEMENT / BANNER PENGGUNA BARU ───────────── */}
+      {showIncompleteBanner && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white p-4 rounded-3xl shadow-lg flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0">
+              ✨
+            </div>
+            <div>
+              <h3 className="font-black text-xs md:text-sm">Profil Kamu Belum Lengkap!</h3>
+              <p className="text-[11px] opacity-90 leading-tight">
+                Lengkapi Bio, Sekolah, No HP (WA), & Instagram agar teman-teman bisa terhubung denganmu.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => { triggerFeedback(); onOpenProfile(); }}
+            className="px-3.5 py-2 rounded-2xl bg-white text-orange-600 font-black text-xs shadow-md hover:bg-orange-50 transition-all shrink-0 whitespace-nowrap"
+          >
+            Lengkapi Sekarang ›
+          </button>
+        </div>
+      )}
+
+      {/* ───────────── TOMBOL INSTALL PWA PERMANEN ───────────── */}
       <InstallPWAButton isDarkMode={isDarkMode} />
 
-      {/* Hero Banner */}
-      <div className="bg-gradient-to-r from-pink-500 to-orange-400 text-white p-6 rounded-3xl shadow-md space-y-3 relative overflow-hidden">
+      {/* ───────────── QUICK ACCESS SHORTCUTS WIDGETS ───────────── */}
+      {onNavigate && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Calm Mode (Requirement 12) */}
+          <button
+            onClick={() => { triggerFeedback(); onNavigate('calm'); }}
+            className="flex items-center gap-3 p-3.5 rounded-3xl bg-gradient-to-r from-sky-400 to-blue-500 text-white shadow-md hover:-translate-y-1 transition-all text-left group"
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">🌬️</span>
+            <div>
+              <p className="font-black text-xs">Butuh Tenang?</p>
+              <p className="text-[10px] opacity-80">Calm Mode (4-7-8)</p>
+            </div>
+          </button>
+
+          {/* Daily Check-in (Requirement 10) */}
+          <button
+            onClick={() => { triggerFeedback(); onNavigate('wellness'); }}
+            className="flex items-center gap-3 p-3.5 rounded-3xl bg-gradient-to-r from-teal-400 to-cyan-500 text-white shadow-md hover:-translate-y-1 transition-all text-left group"
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">💧</span>
+            <div>
+              <p className="font-black text-xs">Daily Check-in</p>
+              <p className="text-[10px] opacity-80">Mood & Hidrasi</p>
+            </div>
+          </button>
+
+          {/* Cek Gejala Pintar (Requirement 9) */}
+          <button
+            onClick={() => { triggerFeedback(); onNavigate('symptom'); }}
+            className="flex items-center gap-3 p-3.5 rounded-3xl bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-md hover:-translate-y-1 transition-all text-left group"
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">🩺</span>
+            <div>
+              <p className="font-black text-xs">Cek Gejala</p>
+              <p className="text-[10px] opacity-80">Analisis Awal</p>
+            </div>
+          </button>
+
+          {/* Social Chat (Requirement 8) */}
+          <button
+            onClick={() => { triggerFeedback(); onNavigate('social'); }}
+            className="flex items-center gap-3 p-3.5 rounded-3xl bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md hover:-translate-y-1 transition-all text-left group"
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">💬</span>
+            <div>
+              <p className="font-black text-xs">Social & Chat</p>
+              <p className="text-[10px] opacity-80">Cari Teman HEAL</p>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ───────────── HERO BANNER EDUKASI ───────────── */}
+      <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-orange-400 text-white p-6 rounded-3xl shadow-md space-y-3 relative overflow-hidden">
         <div className="relative z-10 space-y-2">
-          <span className="bg-white/20 backdrop-blur-md text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-            Edukasi Remaja
+          <span className="bg-white/20 backdrop-blur-md text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+            Edukasi & Pendampingan Remaja
           </span>
-          <h2 className="text-lg font-bold">Kesehatan Mental itu Penting!</h2>
+          <h2 className="text-lg font-black">Kesehatan Fisik & Mental Dimulai Hari Ini</h2>
           <p className="text-xs opacity-90 leading-relaxed max-w-md">
-            Jangan ragu untuk mengekspresikan perasaanmu. HEAL siap mendampingi perjalanan kesehatan fisik dan mentalmu setiap hari.
+            HEAL hadir menemani langkahmu. Pelajari ensiklopedia penyakit di Bank Penyakit, curahkan isi hati di Voicing Rights, dan temukan motivasi harian.
           </p>
           
-          {/* Tombol Pintasan Cepat Emergency SOS */}
-          {onNavigate && (
-            <button
-              onClick={() => { triggerFeedback(); onNavigate('sos'); }}
-              className="mt-2 bg-white text-red-500 font-bold px-4 py-2 rounded-full text-xs shadow-md hover:bg-red-50 transition-all flex items-center gap-1.5 w-fit"
-            >
-              <span>🚨</span> Butuh Bantuan Darurat? (SOS)
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {onNavigate && (
+              <button
+                onClick={() => { triggerFeedback(); onNavigate('medicine'); }}
+                className="bg-white text-pink-600 font-black px-4 py-2 rounded-full text-xs shadow-md hover:bg-pink-50 transition-all flex items-center gap-1.5"
+              >
+                <span>🏥</span> Buka Bank Penyakit ›
+              </button>
+            )}
+            {onNavigate && (
+              <button
+                onClick={() => { triggerFeedback(); onNavigate('sos'); }}
+                className="bg-red-600 hover:bg-red-700 text-white font-black px-4 py-2 rounded-full text-xs shadow-lg hover:shadow-red-500/40 transition-all flex items-center gap-1.5 border border-red-400 animate-pulse"
+              >
+                <span>🚑</span> Panggil Ambulans / PSC 119
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Topik */}
+      {/* ───────────── REKOMENDASI TOPIK HARI INI (INTEGRASI BANK PENYAKIT) ───────────── */}
       <div className="space-y-3">
-        <h3 className="font-bold text-sm flex items-center gap-2">
-          <span>📚</span> Rekomendasi Topik Hari Ini
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-black text-sm flex items-center gap-2">
+            <span>📚</span> Rekomendasi Topik Hari Ini
+          </h3>
+          <span className="text-[10px] font-bold text-pink-500 bg-pink-50 dark:bg-pink-950/60 px-2.5 py-0.5 rounded-full border border-pink-200 dark:border-pink-900">
+            Auto-Refresh Harian
+          </span>
+        </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {displayedTopics.map((item) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {dailyDiseases.map((item) => (
             <div 
-              key={item.key}
-              onClick={() => { triggerFeedback(); onSelectTopic(item.key); }}
-              className={`rounded-3xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border flex flex-col items-center text-center space-y-2 group ${
-                isDarkMode ? 'bg-gray-900 border-gray-800 text-gray-200' : 'bg-white border-pink-50 text-gray-800'
+              key={item.id}
+              onClick={() => {
+                triggerFeedback();
+                if (onNavigate) {
+                  onNavigate('medicine', item.id);
+                }
+              }}
+              className={`rounded-3xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border flex flex-col justify-between group ${
+                isDarkMode 
+                  ? 'bg-gray-900 border-gray-800 hover:border-pink-900 text-gray-200' 
+                  : 'bg-white border-pink-50 hover:border-pink-300 text-gray-800'
               }`}
             >
-              <div className={`w-12 h-12 rounded-2xl ${isDarkMode ? item.darkBg : item.bg} flex items-center justify-center text-2xl group-hover:scale-110 transition-transform`}>
-                {item.icon}
+              <div className="space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-gray-800 border border-pink-100 dark:border-gray-700 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                  {item.icon}
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-xs line-clamp-1 group-hover:text-pink-500 transition-colors">
+                    {item.name}
+                  </h4>
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 block truncate">
+                    {item.category}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-70 line-clamp-2 leading-relaxed">
+                  {item.desc}
+                </p>
               </div>
-              <div>
-                <h4 className="font-bold text-xs line-clamp-1">{item.name}</h4>
-                <span className={`text-[10px] font-bold ${item.text} mt-0.5 block`}>
-                  Pelajari ›
-                </span>
+
+              <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-[10px] font-bold text-pink-500 group-hover:translate-x-1 transition-transform">
+                <span>Pelajari Detail</span>
+                <ArrowRight className="w-3 h-3" />
               </div>
             </div>
           ))}
