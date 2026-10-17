@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { triggerFeedback } from './utils/feedback';
+import { openExternalUrl } from './utils/openExternalUrl';
 import { 
   Phone, AlertTriangle, MapPin, Send, Copy, Check, 
   RefreshCw, Navigation, ShieldAlert, ArrowLeft, HeartPulse, ExternalLink
@@ -180,7 +181,7 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
       const waUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(reportText)}`;
       
       setIsLocating(false);
-      window.open(waUrl, '_blank');
+      openExternalUrl(waUrl);
     };
 
     if (!navigator.geolocation) {
@@ -242,12 +243,41 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
   };
 
   // 6. Aksi Salin Teks
-  const handleCopyReport = () => {
+  const handleCopyReport = async () => {
     triggerFeedback();
     const reportText = generateEmergencyReport();
-    navigator.clipboard.writeText(reportText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(reportText);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = reportText;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      console.warn("Fallback copy:", e);
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = reportText;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch (err) {
+        console.error("Clipboard copy failed:", err);
+      }
+    }
   };
 
   return (
@@ -394,14 +424,13 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
                 https://www.google.com/maps?q={gpsCoords.lat.toFixed(6)},{gpsCoords.lng.toFixed(6)}
               </div>
               <div className="pt-1">
-                <a
-                  href={`https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-300 underline"
+                <button
+                  type="button"
+                  onClick={() => openExternalUrl(`https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-300 underline cursor-pointer"
                 >
                   <ExternalLink className="w-3 h-3" /> Buka & Periksa di Google Maps
-                </a>
+                </button>
               </div>
             </div>
           )}

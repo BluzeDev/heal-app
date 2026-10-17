@@ -88,16 +88,30 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
   // Load inbox (recent chats)
   useEffect(() => {
     if (!currentUser) return;
-    const q = query(
-      collection(db, "direct_chats"),
-      where("participants", "array-contains", currentUser),
-      orderBy("lastTime", "desc")
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const chats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setInbox(chats);
-    });
-    return () => unsub();
+    try {
+      const q = query(
+        collection(db, "direct_chats"),
+        where("participants", "array-contains", currentUser)
+      );
+      const unsub = onSnapshot(
+        q, 
+        (snap) => {
+          const chats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          chats.sort((a, b) => {
+            const timeA = a.lastTime?.toMillis ? a.lastTime.toMillis() : (a.lastTime?.seconds ? a.lastTime.seconds * 1000 : 0);
+            const timeB = b.lastTime?.toMillis ? b.lastTime.toMillis() : (b.lastTime?.seconds ? b.lastTime.seconds * 1000 : 0);
+            return timeB - timeA;
+          });
+          setInbox(chats);
+        },
+        (err) => {
+          console.warn("Inbox snapshot warning:", err);
+        }
+      );
+      return () => unsub();
+    } catch (e) {
+      console.warn("Error setting up inbox listener:", e);
+    }
   }, [currentUser]);
 
   // Open chat with target user

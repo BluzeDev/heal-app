@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { subscribeToChat, sendChatMessage } from './utils/counselorService';
 import { triggerFeedback } from './utils/feedback';
+import { openExternalUrl } from './utils/openExternalUrl';
 
 const COUNSELORS = [
   {
@@ -130,7 +131,7 @@ export default function CounselorScreen({ currentUser, onBack, isDarkMode }) {
     const encodedMessage = encodeURIComponent(`Halo ${selectedCounselor.name}, saya ${activeUser} dari aplikasi HEAL ingin berkonsultasi:\n\n"${userMsg}"`);
     const waUrl = `https://wa.me/${selectedCounselor.whatsappNumber}?text=${encodedMessage}`;
 
-    window.open(waUrl, '_blank');
+    openExternalUrl(waUrl);
   };
 
   return (

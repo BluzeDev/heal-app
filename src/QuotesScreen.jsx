@@ -86,7 +86,23 @@ export default function QuotesScreen({ onBack, isDarkMode }) {
 
   const handleCopy = (text, author) => {
     triggerFeedback();
-    navigator.clipboard.writeText(`"${text}" — ${author}\n\n✨ Dibagikan dari Aplikasi HEAL`);
+    const formatted = `"${text}" — ${author}\n\n✨ Dibagikan dari Aplikasi HEAL`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(formatted);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = formatted;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch (e) {
+      console.warn("Copy fallback failed:", e);
+    }
     showToast("Teks kutipan berhasil disalin ke clipboard! 📋✨");
   };
 

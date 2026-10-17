@@ -1,4 +1,5 @@
 import React from 'react';
+import { openExternalUrl } from './utils/openExternalUrl';
 
 // Katalog daftar video animasi kesehatan dengan link YouTube asli yang relevan
 const animationVideos = [
@@ -60,7 +61,7 @@ const animationVideos = [
 
 export default function HealAnimationScreen({ onBack, isDarkMode }) {
   const handleWatchVideo = (url) => {
-    window.open(url, '_blank');
+    openExternalUrl(url);
   };
 
   return (

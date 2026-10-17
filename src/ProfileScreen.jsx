@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import SkeletonCard from './SkeletonCard';
 import { triggerFeedback } from './utils/feedback';
 import { compressImageFile } from './utils/imageCompressor';
+import { openExternalUrl } from './utils/openExternalUrl';
 import { 
   User, School, BookOpen, Phone, Music2, 
   ArrowLeft, Edit3, Camera, Save, X, ExternalLink 
@@ -281,18 +282,17 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
                 {/* WhatsApp */}
                 {profileData.noHp ? (
-                  <a
-                    href={formatWaUrl(profileData.noHp, profileData.namaLengkap || profileData.namaPanggilan)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all text-xs font-bold dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300"
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(formatWaUrl(profileData.noHp, profileData.namaLengkap || profileData.namaPanggilan))}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all text-xs font-bold dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300 w-full cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 text-emerald-500" />
                       <span>{profileData.noHp}</span>
                     </div>
                     <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50 text-gray-400 border border-gray-200 text-xs dark:bg-gray-800/50 dark:border-gray-700">
                     <Phone className="w-4 h-4 opacity-50" />
@@ -302,18 +302,17 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
 
                 {/* Instagram */}
                 {profileData.usernameIg ? (
-                  <a
-                    href={`https://instagram.com/${profileData.usernameIg}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all text-xs font-bold dark:bg-purple-950/40 dark:border-purple-900 dark:text-purple-300"
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(`https://instagram.com/${profileData.usernameIg}`)}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all text-xs font-bold dark:bg-purple-950/40 dark:border-purple-900 dark:text-purple-300 w-full cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-2">
                       <InstagramIcon className="w-4 h-4 text-purple-500" />
                       <span>@{profileData.usernameIg}</span>
                     </div>
                     <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50 text-gray-400 border border-gray-200 text-xs dark:bg-gray-800/50 dark:border-gray-700">
                     <InstagramIcon className="w-4 h-4 opacity-50" />
@@ -323,18 +322,17 @@ export default function ProfileScreen({ currentUser, viewUser, onBack, isDarkMod
 
                 {/* TikTok */}
                 {profileData.usernameTiktok ? (
-                  <a
-                    href={`https://tiktok.com/@${profileData.usernameTiktok}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-2xl bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200 transition-all text-xs font-bold dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 col-span-1 sm:col-span-2"
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(`https://tiktok.com/@${profileData.usernameTiktok}`)}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200 transition-all text-xs font-bold dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 col-span-1 sm:col-span-2 w-full cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-2">
                       <Music2 className="w-4 h-4 text-pink-500" />
                       <span>@{profileData.usernameTiktok}</span>
                     </div>
                     <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50 text-gray-400 border border-gray-200 text-xs dark:bg-gray-800/50 dark:border-gray-700 col-span-1 sm:col-span-2">
                     <Music2 className="w-4 h-4 opacity-50" />

@@ -265,9 +265,11 @@ export default function LoginScreen({ onLogin }) {
     setLoading(true);
     try {
       const profile = await loginWithGoogle();
-      if (!profile || !profile.displayName) return;
-
-      const cleanUname = (profile.displayName.split(' ')[0] || 'user').toLowerCase().replace(/\s+/g, '');
+      const cleanUname = (profile.email 
+        ? profile.email.split('@')[0] 
+        : (profile.displayName || 'user').split(' ')[0])
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '');
       const userRef = doc(db, 'data_login', cleanUname);
       const userSnap = await getDoc(userRef);
 
