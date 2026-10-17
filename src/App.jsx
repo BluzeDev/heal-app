@@ -99,30 +99,6 @@ export default function App() {
     }
   }, [user]);
 
-  // QoL: Session Timeout / Auto-Logout setelah 15 menit tidak aktif
-  useEffect(() => {
-    if (!user) return;
-    let timeoutId;
-
-    const resetTimer = () => {
-      clearTimeout(timeoutId);
-      // 15 menit = 15 * 60 * 1000 ms
-      timeoutId = setTimeout(() => {
-        alert('🔒 Sesi Anda telah berakhir karena tidak aktif selama 15 menit demi keamanan privasi.');
-        handleLogout();
-      }, 15 * 60 * 1000);
-    };
-
-    // Pantau aktivitas layar
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, resetTimer));
-    resetTimer();
-
-    return () => {
-      clearTimeout(timeoutId);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
-    };
-  }, [user]);
 
   // 📱 Penanganan Tombol Back HP Android (Capacitor Hardware Back & Browser popstate)
   useEffect(() => {
