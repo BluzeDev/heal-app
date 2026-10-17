@@ -344,7 +344,7 @@ export default function App() {
                 isDarkMode={isDarkMode}
               />
             ) : subScreen === 'mood' ? (
-              <MoodTrackerScreen 
+              <WellnessScreen 
                 currentUser={user}
                 onBack={() => { triggerFeedback(); setSubScreen(null); }} 
                 isDarkMode={isDarkMode}
@@ -367,13 +367,8 @@ export default function App() {
                 isDarkMode={isDarkMode}
               />
             ) : subScreen === 'symptom' ? (
-              <SymptomCheckerScreen
-                onSelectDisease={(diseaseId) => {
-                  triggerFeedback();
-                  setSelectedDiseaseId(diseaseId);
-                  setSubScreen('medicine');
-                }}
-                onNavigate={(screen) => setSubScreen(screen)}
+              <MedicineScreen
+                initialTab="symptom"
                 onBack={() => { triggerFeedback(); setSubScreen(null); }}
                 isDarkMode={isDarkMode}
               />

@@ -7,7 +7,8 @@ import {
   initializeAuth, 
   indexedDBLocalPersistence, 
   browserLocalPersistence,
-  browserPopupRedirectResolver 
+  browserPopupRedirectResolver,
+  setPersistence
 } from "firebase/auth";
 
 // Konfigurasi Firebase Web App milikmu
@@ -38,6 +39,17 @@ try {
 } catch (e) {
   authInstance = getAuth(app);
 }
+
+// Pastikan persistence diatur secara eksplisit menggunakan browserLocalPersistence
+// agar token sesi user tersimpan permanen di perangkat lokal dan user tidak keluar sendiri saat aplikasi APK ditutup dan dibuka kembali
+try {
+  setPersistence(authInstance, browserLocalPersistence).catch((err) => {
+    console.warn("Peringatan setPersistence Firebase Auth:", err);
+  });
+} catch (err) {
+  console.warn("Gagal inisialisasi setPersistence eksplisit:", err);
+}
+
 export const auth = authInstance;
 
 export const googleProvider = new GoogleAuthProvider();

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase.js';
 import healLogo from './heal-logo.png';
 import { compressImageFile } from './utils/imageCompressor';
@@ -37,7 +37,8 @@ export default function LoginScreen({ onLogin }) {
   const [showRegConfirmPass, setShowRegConfirmPass] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState('');
 
-  // Input Lupa Password
+  // Input Lupa Password (Verifikasi dengan Nama Lengkap / Nama Panjang)
+  const [forgotFullName, setForgotFullName] = useState('');
   const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [forgotSekolahAsal, setForgotSekolahAsal] = useState('');
   const [forgotNewPass, setForgotNewPass] = useState('');
@@ -45,6 +46,7 @@ export default function LoginScreen({ onLogin }) {
   const [showForgotPass, setShowForgotPass] = useState(false);
   const [showForgotConfirmPass, setShowForgotConfirmPass] = useState(false);
   const [forgotSuccess, setForgotSuccess] = useState(false);
+
 
   // State umum
   const [loading, setLoading] = useState(false);
@@ -200,16 +202,16 @@ export default function LoginScreen({ onLogin }) {
     }
   };
 
-  // 3. Submit Lupa Password
+  // 3. Submit Lupa Password (Verifikasi dengan Nama Lengkap / Nama Panjang)
   const handleForgotSubmit = async (e) => {
     e?.preventDefault();
     setErrorMsg('');
 
-    const cleanId = forgotIdentifier.trim().toLowerCase().replace(/\s+/g, '');
+    const targetFullName = (forgotFullName || forgotIdentifier).trim();
     const schoolInput = forgotSekolahAsal.trim().toLowerCase();
 
-    if (!cleanId || !schoolInput || !forgotNewPass || !forgotConfirmPass) {
-      setErrorMsg('Lengkapi seluruh kolom verifikasi dan password baru');
+    if (!targetFullName || !schoolInput || !forgotNewPass || !forgotConfirmPass) {
+      setErrorMsg('Lengkapi seluruh kolom verifikasi nama lengkap, sekolah asal, dan password baru');
       return;
     }
 
@@ -225,17 +227,24 @@ export default function LoginScreen({ onLogin }) {
 
     setLoading(true);
     try {
-      const userRef = doc(db, 'data_login', cleanId);
-      const userSnap = await getDoc(userRef);
+      const snap = await getDocs(collection(db, 'data_login'));
+      const cleanTarget = targetFullName.toLowerCase().replace(/\s+/g, ' ');
 
-      if (!userSnap.exists()) {
-        setErrorMsg(`Akun dengan nama panggilan "${forgotIdentifier}" tidak ditemukan.`);
+      // Cari user berdasarkan Nama Lengkap (Nama Panjang)
+      const matchedDoc = snap.docs.find((d) => {
+        const data = d.data();
+        const storedFullName = (data.nama_lengkap || data.namaLengkap || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        return storedFullName === cleanTarget;
+      });
+
+      if (!matchedDoc) {
+        setErrorMsg(`Akun dengan Nama Lengkap "${targetFullName}" tidak ditemukan. Pastikan memasukkan nama panjang terdaftar.`);
         setLoading(false);
         return;
       }
 
-      const userData = userSnap.data();
-      const storedSchool = (userData.sekolah_asal || '').trim().toLowerCase();
+      const userData = matchedDoc.data();
+      const storedSchool = (userData.sekolah_asal || userData.sekolahAsal || '').trim().toLowerCase();
 
       // Verifikasi kesesuaian sekolah
       if (storedSchool && storedSchool !== schoolInput) {
@@ -245,7 +254,7 @@ export default function LoginScreen({ onLogin }) {
       }
 
       // Update password baru di Firestore
-      await updateDoc(userRef, {
+      await updateDoc(matchedDoc.ref, {
         password: forgotNewPass,
         terakhir_reset_pass: new Date().toLocaleString('id-ID'),
       });
@@ -825,20 +834,20 @@ export default function LoginScreen({ onLogin }) {
                 <div className="text-center">
                   <h2 className="text-xl font-bold text-gray-800">Lupa Password?</h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Verifikasi nama panggilan dan sekolah asal kamu untuk mengatur ulang password.
+                    Verifikasi Nama Lengkap (Nama Panjang) dan sekolah asal kamu untuk mengatur ulang password.
                   </p>
                 </div>
 
                 <form onSubmit={handleForgotSubmit} className="space-y-3.5">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-pink-500" /> Nama Panggilan / Username
+                      <User className="w-3.5 h-3.5 text-pink-500" /> Nama Lengkap (Nama Panjang)
                     </label>
                     <input
                       type="text"
-                      value={forgotIdentifier}
-                      onChange={(e) => setForgotIdentifier(e.target.value)}
-                      placeholder="Contoh : Riyu"
+                      value={forgotFullName}
+                      onChange={(e) => setForgotFullName(e.target.value)}
+                      placeholder="Contoh : Muhammad Riyu Pratama"
                       className="w-full border-2 border-gray-100 bg-gray-50/80 p-2.5 rounded-2xl outline-none focus:border-pink-400 focus:bg-white text-sm transition-all"
                     />
                   </div>

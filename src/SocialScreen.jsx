@@ -3,7 +3,7 @@ import { db } from "./firebase";
 import {
   collection, addDoc, onSnapshot, query, orderBy, doc, getDoc, setDoc, serverTimestamp, getDocs, where
 } from "firebase/firestore";
-import { ArrowLeft, Search, Send, Users, Phone, Music2, MessageCircle, Clock } from "lucide-react";
+import { ArrowLeft, Search, Send, Users, Phone, Music2, MessageCircle, Clock, Check, CheckCheck } from "lucide-react";
 import { triggerFeedback } from "./utils/feedback";
 
 export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
@@ -11,15 +11,38 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  
+  // Chat States
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [msgInput, setMsgInput] = useState("");
   const [inbox, setInbox] = useState([]);
+  const [partnerStatus, setPartnerStatus] = useState({ isOnline: false, lastSeen: '' });
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+
   const bottomRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const chatId = (a, b) => [a, b].sort().join("__");
 
-  // Search users across Multi-Kriteria: Nama (Lengkap/Panggilan), Username IG, TikTok, No HP
+  // 1. Maintain currentUser's online presence / heartbeat
+  useEffect(() => {
+    if (!currentUser) return;
+    const updateActivePresence = async () => {
+      try {
+        await setDoc(doc(db, "data_login", currentUser), {
+          lastActive: serverTimestamp(),
+          isOnline: true
+        }, { merge: true });
+      } catch (e) {}
+    };
+
+    updateActivePresence();
+    const heartbeat = setInterval(updateActivePresence, 30000); // 30 detik
+    return () => clearInterval(heartbeat);
+  }, [currentUser]);
+
+  // 2. Search users across Multi-Kriteria
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -73,7 +96,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
     }
   };
 
-  // Real-time search effect
+  // Real-time debounce search effect
   useEffect(() => {
     const delayTimer = setTimeout(() => {
       if (searchQuery.trim().length >= 1) {
@@ -85,7 +108,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
     return () => clearTimeout(delayTimer);
   }, [searchQuery]);
 
-  // Load inbox (recent chats)
+  // 3. Load inbox (recent chats) - Tanpa orderBy di query Firestore agar tidak memicu composite index error
   useEffect(() => {
     if (!currentUser) return;
     try {
@@ -97,6 +120,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
         q, 
         (snap) => {
           const chats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          // Sorting array secara lokal di JavaScript untuk menjamin urutan terbaru
           chats.sort((a, b) => {
             const timeA = a.lastTime?.toMillis ? a.lastTime.toMillis() : (a.lastTime?.seconds ? a.lastTime.seconds * 1000 : 0);
             const timeB = b.lastTime?.toMillis ? b.lastTime.toMillis() : (b.lastTime?.seconds ? b.lastTime.seconds * 1000 : 0);
@@ -105,7 +129,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
           setInbox(chats);
         },
         (err) => {
-          console.warn("Inbox snapshot warning:", err);
+          console.warn("Inbox snapshot notice:", err);
         }
       );
       return () => unsub();
@@ -114,32 +138,118 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
     }
   }, [currentUser]);
 
-  // Open chat with target user
+  // 4. Buka Room Chat dengan Target User
   const openChat = (targetUser) => {
     triggerFeedback();
     setActiveChat(targetUser);
     setTab("chat");
   };
 
-  // Load messages in real-time
+  // 5. Pantau Status Online & Last Seen Lawan Bicara
+  useEffect(() => {
+    if (!activeChat?.id) return;
+    try {
+      const unsub = onSnapshot(doc(db, "data_login", activeChat.id), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const lastActiveTime = data.lastActive?.toMillis 
+            ? data.lastActive.toMillis() 
+            : (data.lastActive?.seconds ? data.lastActive.seconds * 1000 : null);
+
+          const isRecent = lastActiveTime && (Date.now() - lastActiveTime < 90000); // Aktif 90 detik terakhir
+          let lastSeenText = '';
+          if (lastActiveTime) {
+            lastSeenText = new Date(lastActiveTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+          }
+          setPartnerStatus({
+            isOnline: !!isRecent,
+            lastSeen: lastSeenText
+          });
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn("Error tracking partner status:", e);
+    }
+  }, [activeChat?.id]);
+
+  // 6. Pantau Typing Indicator Lawan Bicara
+  useEffect(() => {
+    if (!activeChat || !currentUser) return;
+    const cid = chatId(currentUser, activeChat.id);
+    try {
+      const unsub = onSnapshot(doc(db, "direct_chats", cid), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const partnerTyping = data.typing?.[activeChat.id];
+          setIsPartnerTyping(!!partnerTyping);
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn("Error tracking typing status:", e);
+    }
+  }, [activeChat, currentUser]);
+
+  // 7. Load messages in real-time & Update Read Receipt (Tanda Dibaca)
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const cid = chatId(currentUser, activeChat.id);
     const q = query(collection(db, "direct_chats", cid, "messages"), orderBy("timestamp", "asc"));
+    
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setMessages(list);
+
+      // Read Receipt: Tandai pesan dari lawan bicara sebagai sudah dibaca (read: true)
+      snap.docs.forEach((docItem) => {
+        const m = docItem.data();
+        if (m.sender === activeChat.id && !m.read) {
+          setDoc(docItem.ref, { read: true }, { merge: true }).catch(() => {});
+        }
+      });
+
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     });
+
     return () => unsub();
   }, [activeChat, currentUser]);
 
-  // Send message
+  // 8. Handle Input Mengetik (Typing Indicator)
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setMsgInput(val);
+    if (!activeChat || !currentUser) return;
+    const cid = chatId(currentUser, activeChat.id);
+
+    // Kirim status mengetik: true
+    setDoc(doc(db, "direct_chats", cid), {
+      typing: { [currentUser]: true }
+    }, { merge: true }).catch(() => {});
+
+    // Debounce 2 detik untuk ubah status mengetik kembali ke false
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      setDoc(doc(db, "direct_chats", cid), {
+        typing: { [currentUser]: false }
+      }, { merge: true }).catch(() => {});
+    }, 2000);
+  };
+
+  // 9. Send message
   const sendMessage = async () => {
     if (!msgInput.trim() || !activeChat) return;
     triggerFeedback();
     const cid = chatId(currentUser, activeChat.id);
     const text = msgInput.trim();
     setMsgInput("");
+
+    // Reset status mengetik segera
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    setDoc(doc(db, "direct_chats", cid), {
+      typing: { [currentUser]: false }
+    }, { merge: true }).catch(() => {});
+
     try {
       await setDoc(doc(db, "direct_chats", cid), {
         participants: [currentUser, activeChat.id],
@@ -155,6 +265,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
         sender: currentUser,
         text,
         timestamp: serverTimestamp(),
+        read: false // Default belum dibaca
       });
     } catch (err) {
       console.error("Gagal mengirim pesan chat:", err);
@@ -196,7 +307,7 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
 
         {tab === "chat" && (
           <button
-            onClick={() => setTab("inbox")}
+            onClick={() => { triggerFeedback(); setTab("inbox"); }}
             className="text-xs font-bold text-purple-500 hover:underline px-3 py-1 bg-purple-50 dark:bg-purple-950/60 rounded-full"
           >
             ← Inbox
@@ -261,102 +372,86 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="text-xs text-gray-400 hover:text-gray-600 font-bold px-1"
+                  className="text-xs text-gray-400 hover:text-gray-600"
                 >
                   ✕
                 </button>
               )}
             </div>
-            <p className="text-[10px] text-gray-400 px-1">
-              ✨ Ketik nama panggilan, @instagram, @tiktok, atau nomor HP (contoh: 08...)
+            <p className="text-[10px] opacity-60 px-1">
+              💡 Mendukung pencarian instan nama lengkap, nama panggilan, sosial media, & telepon.
             </p>
           </div>
 
-          {searching && (
-            <div className="text-center py-6 text-xs text-purple-500 font-bold animate-pulse">
-              Sedang mencari pengguna HEAL...
-            </div>
-          )}
-
-          {/* Results List */}
+          {/* Hasil Pencarian */}
           <div className="space-y-2.5">
-            {searchResults.map((u) => (
-              <div
-                key={u.id}
-                onClick={() => openChat(u)}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer hover:shadow-md flex items-center justify-between gap-3 group ${
-                  isDarkMode 
-                    ? "bg-gray-900 border-gray-800 hover:border-purple-500" 
-                    : "bg-white border-purple-50 hover:border-purple-300"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white font-black text-lg overflow-hidden shadow-md shrink-0">
-                    {u.avatar && (u.avatar.startsWith("data:") || u.avatar.startsWith("http")) ? (
-                      <img src={u.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      u.avatar || u.id.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div className="space-y-0.5">
-                    <p className="font-extrabold text-xs group-hover:text-purple-600 transition-colors">
-                      {u.namaLengkap}
-                    </p>
-                    <p className="text-[11px] text-purple-500 font-bold">@{u.namaPanggilan}</p>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] opacity-70">
-                      {u.sekolahAsal && <span>🏫 {u.sekolahAsal}</span>}
-                      {u.usernameIg && <span>📸 @{u.usernameIg}</span>}
-                      {u.noHp && <span>📱 {u.noHp}</span>}
+            {searching ? (
+              <div className="text-center py-8 text-xs opacity-60 animate-pulse">
+                Mencari pengguna... 🌸
+              </div>
+            ) : searchResults.length > 0 ? (
+              searchResults.map((usr) => (
+                <div
+                  key={usr.id}
+                  className={`p-3.5 rounded-3xl border transition-all shadow-sm flex items-center justify-between gap-3 ${
+                    isDarkMode ? "bg-gray-900 border-gray-800 hover:border-purple-600" : "bg-white border-purple-100 hover:border-purple-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-xl shadow-md shrink-0">
+                      {usr.avatar && usr.avatar.length <= 4 ? usr.avatar : "🌸"}
+                    </div>
+                    <div className="space-y-0.5 overflow-hidden">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-xs truncate">{usr.namaLengkap}</span>
+                        {usr.namaPanggilan && (
+                          <span className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded-md">
+                            @{usr.namaPanggilan}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] opacity-60 truncate">
+                        {usr.sekolahAsal || "Sobat HEAL"}
+                      </p>
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => openChat({ id: usr.id, namaLengkap: usr.namaLengkap })}
+                    className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold text-xs shadow-md hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Chat</span>
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-xs shadow-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-1 shrink-0"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Chat</span>
-                </button>
+              ))
+            ) : searchQuery.trim().length >= 1 ? (
+              <div className={`p-6 rounded-3xl text-center border text-xs opacity-60 ${
+                isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-purple-100"
+              }`}>
+                Pengguna dengan kata kunci "{searchQuery}" tidak ditemukan.
               </div>
-            ))}
+            ) : (
+              <div className={`p-6 rounded-3xl text-center border text-xs space-y-1.5 ${
+                isDarkMode ? "bg-gray-900 border-gray-800 opacity-60" : "bg-white/80 border-purple-100 text-gray-500"
+              }`}>
+                <p className="font-bold">Ketik nama teman untuk memulai percakapan</p>
+                <p className="text-[11px] opacity-75">HEAL menghubungkan remaja untuk saling mendukung kesehatan mental & fisik.</p>
+              </div>
+            )}
           </div>
-
-          {!searching && searchResults.length === 0 && searchQuery && (
-            <div className={`p-8 rounded-3xl text-center border shadow-sm space-y-2 ${
-              isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-purple-100"
-            }`}>
-              <p className="text-3xl">👥</p>
-              <h4 className="font-bold text-xs">Tidak Ada Pengguna Ditemukan</h4>
-              <p className="text-[11px] opacity-60">
-                Coba gunakan kata kunci lain, nama lengkap, atau username IG.
-              </p>
-            </div>
-          )}
-
-          {!searchQuery && (
-            <div className={`p-8 rounded-3xl text-center border shadow-sm space-y-2 ${
-              isDarkMode ? "bg-gray-900/60 border-gray-800" : "bg-white/70 border-purple-100"
-            }`}>
-              <div className="text-4xl mb-2">🤝</div>
-              <h3 className="font-extrabold text-sm text-purple-600">Temukan Sobat HEAL Lainnya</h3>
-              <p className="text-xs opacity-70 max-w-xs mx-auto leading-relaxed">
-                Gunakan kotak pencarian di atas untuk mencari teman berdasarkan nama, username Instagram, TikTok, atau nomor WhatsApp.
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ───────────── TAB 2: INBOX LIST ───────────── */}
+      {/* ───────────── TAB 2: INBOX CHAT ───────────── */}
       {tab === "inbox" && (
         <div className="px-4 max-w-xl mx-auto w-full space-y-2.5 pt-1">
           {inbox.length === 0 ? (
-            <div className={`p-10 rounded-3xl text-center border shadow-sm space-y-2 ${
+            <div className={`p-8 rounded-3xl text-center border space-y-2 ${
               isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-purple-100"
             }`}>
-              <div className="text-4xl mb-2">💌</div>
-              <h3 className="font-bold text-sm">Belum Ada Percakapan Aktif</h3>
+              <span className="text-3xl">💌</span>
+              <p className="font-bold text-xs">Belum ada obrolan aktif</p>
               <p className="text-xs opacity-60 max-w-xs mx-auto">
                 Mulai obrolan dengan temanmu sekarang melalui tab "Cari Pengguna"!
               </p>
@@ -411,21 +506,47 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
       {/* ───────────── TAB 3: REAL-TIME ROOM CHAT ───────────── */}
       {tab === "chat" && activeChat && (
         <div className="flex flex-col flex-1 max-w-xl mx-auto w-full px-4">
-          {/* Chat Partner Header Card */}
-          <div className={`p-3 rounded-2xl border mb-3 flex items-center gap-3 shadow-sm ${
+          
+          {/* Chat Partner Header Card (Indikator Online / Last Seen) */}
+          <div className={`p-3 rounded-2xl border mb-3 flex items-center justify-between shadow-sm ${
             isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-purple-100"
           }`}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black text-sm shadow-inner shrink-0">
-              {(activeChat.namaLengkap || activeChat.id).charAt(0).toUpperCase()}
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black text-sm shadow-inner shrink-0">
+                  {(activeChat.namaLengkap || activeChat.id).charAt(0).toUpperCase()}
+                </div>
+                {/* Green badge if online */}
+                {partnerStatus.isOnline && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900" />
+                )}
+              </div>
+
+              <div className="overflow-hidden">
+                <p className="font-extrabold text-xs truncate">
+                  {activeChat.namaLengkap || activeChat.id}
+                </p>
+                
+                {/* Status Online atau Waktu Terakhir Aktif */}
+                {partnerStatus.isOnline ? (
+                  <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    <span>Online</span>
+                  </p>
+                ) : partnerStatus.lastSeen ? (
+                  <p className="text-[10px] opacity-60 font-medium">
+                    Terakhir aktif {partnerStatus.lastSeen}
+                  </p>
+                ) : (
+                  <p className="text-[10px] opacity-60 font-medium">
+                    Offline
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="font-extrabold text-xs truncate">
-                {activeChat.namaLengkap || activeChat.id}
-              </p>
-              <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-ping" />
-                <span>Ruang Chat Real-time</span>
-              </p>
+
+            <div className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-full">
+              Ruang Chat Langsung
             </div>
           </div>
 
@@ -463,9 +584,28 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
                     >
                       <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                     </div>
-                    {timeStr && (
-                      <span className="text-[9px] opacity-40 px-1 mt-0.5">{timeStr}</span>
-                    )}
+
+                    {/* Status Pengiriman & Tanda Dibaca (Read Receipt) */}
+                    <div className="flex items-center gap-1 text-[9px] px-1 mt-0.5">
+                      {isMe ? (
+                        <>
+                          {msg.read ? (
+                            <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+                              <CheckCheck className="w-3 h-3" />
+                              <span>Dibaca</span>
+                            </span>
+                          ) : (
+                            <span className="opacity-50 flex items-center gap-0.5">
+                              <Check className="w-3 h-3" />
+                              <span>Terkirim</span>
+                            </span>
+                          )}
+                          {timeStr && <span className="opacity-40">• {timeStr}</span>}
+                        </>
+                      ) : (
+                        timeStr && <span className="opacity-40">{timeStr}</span>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -473,15 +613,23 @@ export default function SocialScreen({ currentUser, onBack, isDarkMode }) {
             <div ref={bottomRef} />
           </div>
 
+          {/* Typing Indicator */}
+          {isPartnerTyping && (
+            <div className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-purple-600 dark:text-purple-400 font-bold animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping"></span>
+              <span>{activeChat.namaLengkap || activeChat.id} sedang mengetik...</span>
+            </div>
+          )}
+
           {/* Message Input Box */}
-          <div className="pt-3">
+          <div className="pt-2">
             <div className={`flex items-center gap-2 p-2 border-2 rounded-3xl shadow-md ${
               isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-purple-100"
             }`}>
               <input
                 type="text"
                 value={msgInput}
-                onChange={(e) => setMsgInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Tulis pesan kamu..."
                 className="flex-1 bg-transparent px-3 py-1.5 text-xs outline-none font-medium"

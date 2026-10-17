@@ -84,7 +84,7 @@ export default function EmergencySOSScreen({ currentUser, onBack, isDarkMode }) 
     fetchUserData();
   }, [currentUser]);
 
-  // 2. Ambil Geolocation GPS awal saat layar dibuka (timeout 4000ms)
+  // 2. Ambil Geolocation GPS awal saat layar dibuka (timeout 11000ms)
   const requestGpsLocation = () => {
     if (!navigator.geolocation) {
       setGpsStatus('denied');
@@ -102,13 +102,13 @@ export default function EmergencySOSScreen({ currentUser, onBack, isDarkMode }) 
         setGpsStatus('success');
       },
       (err) => {
-        console.warn("Akses GPS ditolak / error / timeout:", err);
+        // Fallback ramah tanpa lempar error merah di console
         setGpsStatus('denied');
       },
       {
-        enableHighAccuracy: true,
-        timeout: 4000,
-        maximumAge: 0
+        enableHighAccuracy: false,
+        timeout: 11000,
+        maximumAge: 60000
       }
     );
   };
@@ -130,7 +130,7 @@ export default function EmergencySOSScreen({ currentUser, onBack, isDarkMode }) 
 
   // Helper Lokasi Fallback Resmi
   const getFallbackLocationText = () => {
-    const baseFallback = 'Mohon pandu konfirmasi lokasi saya (GPS tidak aktif/terhalang)';
+    const baseFallback = 'Lokasi GPS tidak terdeteksi (Mohon konfirmasi manual)';
     return gpsAddressHint.trim() ? `${baseFallback} (Patokan: ${gpsAddressHint.trim()})` : baseFallback;
   };
 
@@ -190,56 +190,57 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
       return;
     }
 
-    // Safety timeout jika browser tidak trigger callback tepat waktu (> 4000ms)
+    // Safety timeout jika browser tidak trigger callback tepat waktu (11500ms)
     let hasHandled = false;
     const safetyTimer = setTimeout(() => {
       if (!hasHandled) {
         hasHandled = true;
-        console.warn("GPS safety timeout fired (>4000ms)");
         setGpsStatus('denied');
         proceedWithLocation(getFallbackLocationText());
       }
-    }, 4100);
+    }, 11500);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (hasHandled) return;
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (hasHandled) return;
+          hasHandled = true;
+          clearTimeout(safetyTimer);
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+          const finalLocation = gpsAddressHint.trim() 
+            ? `${mapUrl} (Patokan: ${gpsAddressHint.trim()})` 
+            : mapUrl;
+
+          proceedWithLocation(finalLocation, {
+            lat,
+            lng,
+            accuracy: pos.coords.accuracy
+          });
+        },
+        (err) => {
+          if (hasHandled) return;
+          hasHandled = true;
+          clearTimeout(safetyTimer);
+          setGpsStatus('denied');
+          // Jangan biarkan aplikasi macet. Langsung fallback otomatis menyematkan teks manual dan buka link WA
+          proceedWithLocation(getFallbackLocationText());
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 11000,
+          maximumAge: 60000
+        }
+      );
+    } catch (e) {
+      if (!hasHandled) {
         hasHandled = true;
         clearTimeout(safetyTimer);
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        const finalLocation = gpsAddressHint.trim() 
-          ? `${mapUrl} (Patokan: ${gpsAddressHint.trim()})` 
-          : mapUrl;
-
-        proceedWithLocation(finalLocation, {
-          lat,
-          lng,
-          accuracy: pos.coords.accuracy
-        });
-      },
-      (err) => {
-        if (hasHandled) return;
-        hasHandled = true;
-        clearTimeout(safetyTimer);
-        console.warn("GPS gagal atau timeout 4 detik:", err);
         setGpsStatus('denied');
-        // Jangan blokir alur darurat! Tetap buka WA dengan fallback pesan
         proceedWithLocation(getFallbackLocationText());
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 4000,
-        maximumAge: 0
       }
-    );
-  };
-
-  // 5. Aksi Telepon Langsung 119
-  const handleCallHotline = () => {
-    triggerFeedback();
-    openExternalUrl('tel:119');
+    }
   };
 
   // 6. Aksi Salin Teks
@@ -307,13 +308,10 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
           </div>
         </div>
 
-        <button 
-          onClick={handleCallHotline}
-          className="bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold px-3 py-1.5 rounded-full text-xs shadow-md flex items-center gap-1.5 transition-all animate-pulse"
-        >
-          <Phone className="w-3.5 h-3.5 fill-current" />
-          <span>Call 119</span>
-        </button>
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>WhatsApp 119</span>
+        </div>
       </div>
 
       <div className="p-4 max-w-xl mx-auto w-full space-y-4">
@@ -335,40 +333,27 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
             </h2>
             
             <p className="text-xs text-red-100 leading-relaxed">
-              PSC 119 adalah pusat komando darurat medis terintegrasi yang siap mengirim armada ambulans dan tenaga medis terdekat ke titik lokasi kamu.
+              PSC 119 adalah pusat komando tanggap darurat medis terintegrasi yang siap mengirim armada ambulans dan tenaga medis terdekat ke titik lokasi kamu melalui pelaporan cepat WhatsApp.
             </p>
           </div>
         </div>
 
-        {/* ───────────── TOMBOL UTAMA TINDAKAN CEPAT ───────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* Tombol Call Langsung */}
-          <button 
-            onClick={handleCallHotline}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-3.5 px-4 rounded-2xl text-sm shadow-md transition-all flex items-center justify-center gap-2 border-2 border-red-400 active:scale-[0.98]"
-          >
-            <Phone className="w-5 h-5 animate-bounce" />
-            <div className="text-left">
-              <div className="text-xs font-bold opacity-90">Telepon Darurat</div>
-              <div className="text-sm font-black">Hubungi Hotline 119</div>
-            </div>
-          </button>
-
-          {/* Tombol Kirim WhatsApp Cepat dengan Auto Geolocation */}
+        {/* ───────────── TOMBOL UTAMA TINDAKAN CEPAT WHATSAPP PSC 119 ───────────── */}
+        <div>
           <button 
             onClick={handleEmergencyWhatsApp}
             disabled={isLocating}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-75 text-white font-black py-3.5 px-4 rounded-2xl text-sm shadow-md transition-all flex items-center justify-center gap-2 border-2 border-emerald-400 active:scale-[0.98]"
+            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-75 text-white font-black py-4 px-4 rounded-2xl text-sm shadow-lg transition-all flex items-center justify-center gap-3 border-2 border-emerald-400 active:scale-[0.98]"
           >
             {isLocating ? (
-              <RefreshCw className="w-5 h-5 animate-spin" />
+              <RefreshCw className="w-6 h-6 animate-spin" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send className="w-6 h-6" />
             )}
             <div className="text-left">
-              <div className="text-xs font-bold opacity-90">WhatsApp PSC 119</div>
-              <div className="text-sm font-black">
-                {isLocating ? "Mendeteksi lokasi GPS..." : "Kirim Laporan Ambulans"}
+              <div className="text-xs font-bold opacity-90 uppercase tracking-wider">Layanan Darurat WhatsApp PSC 119</div>
+              <div className="text-base font-black">
+                {isLocating ? "Mendeteksi lokasi GPS... (Menyiapkan)" : "Kirim Laporan Ambulans Cepat"}
               </div>
             </div>
           </button>
@@ -654,17 +639,6 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
             </span>
           </button>
 
-          <button 
-            onClick={handleCallHotline}
-            className={`w-full font-bold py-3 rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 border active:scale-[0.98] ${
-              isDarkMode 
-                ? 'bg-gray-900 border-gray-700 text-gray-200 hover:bg-gray-800' 
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Phone className="w-4 h-4 text-red-500" />
-            <span>Atau Panggil Suara Langsung ke Nomor Telepon 119 (Bebas Pulsa)</span>
-          </button>
         </div>
 
         {/* ───────────── INFORMASI PSC 119 ───────────── */}
@@ -672,11 +646,11 @@ Mohon tindak lanjut dan pengiriman unit ambulans ke lokasi. Terima kasih.`;
           isDarkMode ? 'bg-gray-900/60 border-gray-800 text-gray-400' : 'bg-white border-red-100 text-gray-600'
         }`}>
           <p className="font-black text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
-            <span>ℹ️</span> Tentang Layanan PSC 119 (Public Safety Center):
+            <span>ℹ️</span> Tentang Layanan Darurat PSC 119 (Public Safety Center):
           </p>
           <p>• PSC 119 adalah layanan tanggap darurat medis pra-rumah sakit resmi dari Kementerian Kesehatan RI dan Pemerintah Daerah.</p>
-          <p>• Nomor telepon <strong>119 bebas pulsa</strong> dan dapat dihubungi melalui semua penyedia seluler di seluruh wilayah Indonesia 24 Jam.</p>
-          <p>• Jika respon WhatsApp lambat karena antrean, <strong>SEGERA lakukan panggilan telepon langsung ke nomor 119</strong>.</p>
+          <p>• Layanan WhatsApp resmi PSC 119 aktif 24 jam untuk pengiriman armada ambulans dan pertolongan pertama di seluruh wilayah Indonesia.</p>
+          <p>• Titik koordinat GPS dan data laporan akan otomatis terlampir pada pesan WhatsApp untuk mempercepat respon tim medis.</p>
         </div>
 
       </div>

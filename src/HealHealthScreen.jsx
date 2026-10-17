@@ -196,6 +196,21 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     };
   }, [user, lastPeriodDate, periodDuration]);
 
+  // Inisialisasi awal hasil kalkulasi BMI agar langsung tampil lengkap
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`heal_health_calc_${userKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.val || parsed.category) {
+          setBmiResult(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+    calculateHealthMetrics(berat, tinggi, usia, gender, false);
+  }, [userKey]);
+
   // Save Water
   const handleAddWater = () => {
     triggerFeedback();
@@ -252,31 +267,41 @@ export default function HealHealthScreen({ user, isDarkMode }) {
     let colorClass = '';
     let bgClass = '';
     let nutritionTip = '';
+    let advicePolaMakan = '';
+    let adviceAktivitas = '';
 
     if (bmi < 18.5) {
-      category = 'Berat Badan Kurang';
-      categoryBadge = '🔵 Berat Kurang';
+      category = 'Kurus (Underweight)';
+      categoryBadge = '🔵 Kurus';
       colorClass = isDarkMode ? 'text-blue-400' : 'text-blue-600';
       bgClass = isDarkMode ? 'bg-blue-950/40 border-blue-900' : 'bg-blue-50 border-blue-200';
       nutritionTip = 'Tingkatkan asupan kalori padat nutrisi seperti kacang-kacangan, alpukat, telur, dan susu untuk menunjang tumbuh kembang optimal.';
+      advicePolaMakan = 'Fokus pada makanan padat gizi: perbanyak protein hewani & nabati (telur, ikan, ayam, tempe/tahu) dan karbohidrat kompleks. Makan teratur 3 kali sehari diselingi 2 kali camilan sehat (pisang, jus alpukat, roti gandum).';
+      adviceAktivitas = 'Lakukan latihan ketahanan atau calisthenics ringan (push-up, squat, lunges) 2-3 kali seminggu untuk membangun massa otot tanpa memicu penurunan berat badan berlebih.';
     } else if (bmi >= 18.5 && bmi <= 24.9) {
       category = 'Normal / Ideal';
-      categoryBadge = '🟢 Normal/Ideal';
+      categoryBadge = '🟢 Normal / Ideal';
       colorClass = isDarkMode ? 'text-green-400' : 'text-green-600';
       bgClass = isDarkMode ? 'bg-green-950/40 border-green-900' : 'bg-green-50 border-green-200';
-      nutritionTip = 'Keren! Berat badanmu ideal. Pertahankan pola makan gizi seimbang (Isi Piringku) dan rutin bergerak aktif minimal 30 menit sehari.';
+      nutritionTip = 'Keren! Berat badanmu berada dalam kategori ideal. Pertahankan pola makan gizi seimbang dan gaya hidup aktif.';
+      advicePolaMakan = 'Pertahankan prinsip "Isi Piringku": separuh piring sayuran hijau dan buah segar, seperempat karbohidrat kompleks (nasi merah/kentang), dan seperempat lauk pauk tinggi protein. Batasi makanan cepat saji.';
+      adviceAktivitas = 'Lakukan aktivitas fisik atau olahraga aerobik minimal 30 menit sehari (3-5 kali seminggu) seperti jogging santai, bersepeda, badminton, atau berenang bersama teman.';
     } else if (bmi >= 25 && bmi <= 29.9) {
-      category = 'Berat Badan Lebih';
-      categoryBadge = '🟠 Overweight';
+      category = 'Berat Badan Berlebih (Overweight)';
+      categoryBadge = '🟠 Berat Badan Berlebih';
       colorClass = isDarkMode ? 'text-amber-400' : 'text-amber-600';
       bgClass = isDarkMode ? 'bg-amber-950/40 border-amber-900' : 'bg-amber-50 border-amber-200';
-      nutritionTip = 'Batasi konsumsi gorengan, minuman manis boba/soda, dan perbanyak serat sayuran hijau serta olahraga cardio ringan.';
+      nutritionTip = 'Batasi konsumsi gorengan, minuman manis boba/soda, dan perbanyak serat sayuran hijau serta olahraga kardio teratur.';
+      advicePolaMakan = 'Kurangi konsumsi gula pasir, minuman manis kemasan, dan cemilan olahan tepung. Perbanyak sayur kaya serat untuk memberikan rasa kenyang alami lebih lama. Hindari makan berat menjelang tidur.';
+      adviceAktivitas = 'Tingkatkan mobilitas harian: targetkan 7.000 - 10.000 langkah per hari, serta olahraga kardio moderat 30-45 menit sebanyak 4-5 kali per minggu.';
     } else {
       category = 'Obesitas';
       categoryBadge = '🔴 Obesitas';
       colorClass = isDarkMode ? 'text-red-400' : 'text-red-600';
       bgClass = isDarkMode ? 'bg-red-950/40 border-red-900' : 'bg-red-50 border-red-200';
-      nutritionTip = 'Yuk mulai kurangi porsi karbohidrat sederhana dan fast food. Utamakan air putih, protein tanpa lemak, dan jalan kaki 6.000 langkah tiap hari.';
+      nutritionTip = 'Yuk mulai atur defisit kalori terarah dan pilih makanan rendah indeks glikemik. Utamakan air mineral dan konsultasikan dengan ahli gizi jika perlu.';
+      advicePolaMakan = 'Pilih pola makan rendah kalori dan tinggi nutrisi: ganti nasi putih dengan nasi merah/ubi rebus, kurangi minyak gorengan dengan metode kukus/rebus, dan konsumsi sayuran di awal makan.';
+      adviceAktivitas = 'Pilih aktivitas fisik low-impact yang melindungi persendian lutut remaja, seperti berenang, jalan santai cepat, atau bersepeda statis selama 30 menit setiap hari.';
     }
 
     // 2. BMR & TDEE (Mifflin-St Jeor)
@@ -300,6 +325,8 @@ export default function HealHealthScreen({ user, isDarkMode }) {
       colorClass,
       bgClass,
       nutritionTip,
+      advicePolaMakan,
+      adviceAktivitas,
       bmr,
       tdee,
       waterMl,
@@ -953,10 +980,21 @@ export default function HealHealthScreen({ user, isDarkMode }) {
                 </div>
               </div>
 
-              {/* Saran Nutrisi Ramah Remaja */}
-              <div className="pt-2 border-t border-black/10 dark:border-white/10 text-xs leading-relaxed">
-                <span className="font-bold block text-[11px] mb-0.5">🥗 Saran Nutrisi Ramah Remaja:</span>
-                <p className="opacity-90">{bmiResult.nutritionTip}</p>
+              {/* Saran & Rekomendasi Solutif Lengkap */}
+              <div className="pt-2.5 border-t border-black/10 dark:border-white/10 space-y-2.5 text-xs leading-relaxed">
+                <div>
+                  <span className="font-black text-[11px] flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 mb-0.5">
+                    🥗 Rekomendasi Pola Makan Seimbang:
+                  </span>
+                  <p className="opacity-90 leading-relaxed">{bmiResult.advicePolaMakan || bmiResult.nutritionTip}</p>
+                </div>
+
+                <div>
+                  <span className="font-black text-[11px] flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 mb-0.5">
+                    🏃 Saran Aktivitas Fisik Remaja:
+                  </span>
+                  <p className="opacity-90 leading-relaxed">{bmiResult.adviceAktivitas}</p>
+                </div>
               </div>
             </div>
 
