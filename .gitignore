@@ -27,6 +27,8 @@ android/.idea
 android/captures
 *.apk
 *.aab
+*.idsig
+*.jks
 
 # Editor directories and files
 .vscode/*
